@@ -1,0 +1,13 @@
+{
+  "name": "launcher",
+  "version": "1.0.0",
+  "description": "CLI App Launcher for your laptop",
+  "main": "bin/index.js",
+  "bin": {
+    "zap": "./bin/index.js"
+  },
+  "dependencies": {
+    "commander": "^11.0.0",
+    "open": "^9.1.0"
+  }
+}
