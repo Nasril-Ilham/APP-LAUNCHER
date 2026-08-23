@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
 const { Command } = require('commander');
-const { exec } = require('child_process');
+const { spawn } = require('child_process');
+const prompts = require('prompts');
 const { loadDb, saveDb } = require('../src/db');
 const program = new Command();
 
@@ -10,22 +11,33 @@ program
   .description('CLI App Launcher for your laptop')
   .version('1.0.0');
 
-// Fungsi native untuk membuka aplikasi di berbagai OS
+// Fungsi native untuk membuka aplikasi menggunakan spawn (lebih aman)
 function launchApp(appPath) {
-    let cmd = '';
+    let command;
+    let args = [];
+    
     if (process.platform === 'win32') {
-        cmd = `start "" "${appPath}"`;
+        command = 'cmd';
+        args = ['/c', 'start', '""', appPath];
     } else if (process.platform === 'darwin') {
-        cmd = `open "${appPath}"`;
+        command = 'open';
+        args = [appPath];
     } else {
-        cmd = `xdg-open "${appPath}"`;
+        command = 'xdg-open';
+        args = [appPath];
     }
-
-    exec(cmd, (error) => {
-        if (error) {
-            console.log(`Gagal membuka aplikasi: ${error.message}`);
-        }
-    });
+    
+    try {
+        const child = spawn(command, args, {
+            detached: true,
+            stdio: 'ignore'
+        });
+        
+        // Lepaskan child process agar tidak terikat ke terminal
+        child.unref();
+    } catch (error) {
+        console.log(`Gagal membuka aplikasi: ${error.message}`);
+    }
 }
 
 // 1. PERINTAH ADD (Menambahkan aplikasi)
@@ -35,7 +47,6 @@ program.command('add <name> <path>')
   .action((name, path) => {
     const db = loadDb();
     
-    // Simpan ke database. Kita buat namanya jadi huruf kecil semua agar mudah dicari
     db[name.toLowerCase()] = { 
         name: name, 
         path: path, 
@@ -46,7 +57,27 @@ program.command('add <name> <path>')
     console.log(`software "${name}" added successfully`);
   });
 
-// 2. PERINTAH LIST (Melihat daftar aplikasi)
+// 2. PERINTAH ALIAS (Menambahkan shortcut ke aplikasi)
+// Contoh: zap alias figma fig
+program.command('alias <name> <shortcut>')
+  .description('Menambahkan nama panggilan (shortcut) untuk aplikasi')
+  .action((name, shortcut) => {
+    const db = loadDb();
+    const key = name.toLowerCase();
+    const shortcutKey = shortcut.toLowerCase();
+    
+    if (!db[key]) {
+      console.log(`Aplikasi "${name}" tidak ditemukan. Cek kembali menggunakan: zap list`);
+      return;
+    }
+    
+    db[key].shortcut = shortcutKey;
+    saveDb(db);
+    console.log(`Shortcut "${shortcutKey}" berhasil ditambahkan untuk aplikasi "${name}".`);
+    console.log(`Sekarang Anda bisa membukanya dengan mengetik: zap ${shortcutKey}`);
+  });
+
+// 3. PERINTAH LIST (Melihat daftar aplikasi)
 // Contoh: zap list
 program.command('list')
   .description('Melihat daftar aplikasi yang sudah terdaftar')
@@ -62,26 +93,96 @@ program.command('list')
     console.log('Daftar Aplikasi Terdaftar:' + '\n');
     apps.forEach(key => {
       const app = db[key];
-      console.log(`> ${app.name} (Path: ${app.path})`);
+      const shortcutText = app.shortcut ? ` (Shortcut: ${app.shortcut})` : '';
+      console.log(`> ${app.name}${shortcutText} (Path: ${app.path})`);
     });
   });
 
-// 3. PERINTAH OPEN (Membuka aplikasi)
-// Contoh: zap open chrome
-program.command('open <name>')
-  .description('Membuka aplikasi berdasarkan nama')
-  .action((name) => {
+// 4. PERINTAH UPDATE (Memperbarui path aplikasi)
+// Contoh: zap update figma "C:\Users\zeanl\AppData\Local\Figma\Figma.exe"
+program.command('update <name> <new_path>')
+  .description('Memperbarui path dari aplikasi yang sudah terdaftar')
+  .action((name, new_path) => {
     const db = loadDb();
-    const app = db[name.toLowerCase()];
+    const key = name.toLowerCase();
     
-    if (!app) {
-      console.log(`Aplikasi "${name}" tidak ditemukan. Coba ketik: zap list`);
+    if (!db[key]) {
+      console.log(`Aplikasi "${name}" tidak ditemukan. Cek kembali menggunakan: zap list`);
       return;
     }
     
-    console.log(` Membuka ${app.name}...`);
-    // Menggunakan native child_process agar otomatis jalan di Windows/Mac/Linux
-    launchApp(app.path);
+    db[key].path = new_path;
+    saveDb(db);
+    console.log(`Path untuk aplikasi "${name}" berhasil diperbarui.`);
   });
 
-program.parse();
+// 5. PERINTAH DELETE (Menghapus aplikasi secara interaktif)
+// Contoh: zap delete
+program.command('delete')
+  .description('Menghapus aplikasi dari daftar secara interaktif')
+  .action(async () => {
+    const db = loadDb();
+    const apps = Object.keys(db);
+    
+    if (apps.length === 0) {
+      console.log('Tidak ada aplikasi terdaftar untuk dihapus.');
+      return;
+    }
+    
+    // Membuat format pilihan untuk menu interaktif
+    const choices = apps.map(key => ({
+      title: `${db[key].name} (Path: ${db[key].path})`,
+      value: key
+    }));
+
+    // Menambahkan opsi batal di akhir daftar
+    choices.push({
+      title: 'Batal',
+      value: 'exit'
+    });
+    
+    // Menampilkan menu pilihan panah atas/bawah
+    const response = await prompts({
+      type: 'select',
+      name: 'selectedApp',
+      message: 'Pilih aplikasi yang ingin dihapus (Gunakan panah atas/bawah, lalu Enter)' + '\n',
+      choices: choices
+    });
+    
+    if (response.selectedApp && response.selectedApp !== 'exit') {
+      const appName = db[response.selectedApp].name;
+      delete db[response.selectedApp];
+      saveDb(db);
+      console.log(`Aplikasi "${appName}" berhasil dihapus.`);
+    } else {
+      console.log('Proses penghapusan dibatalkan.');
+    }
+  });
+
+// 6. LOGIKA PANGGIL LANGSUNG (Memungkinkan syntax: zap figma atau zap fig)
+const args = process.argv.slice(2);
+const knownCommands = ['add', 'alias', 'list', 'update', 'delete', '-h', '--help', '-V', '--version'];
+
+if (args.length > 0 && !knownCommands.includes(args[0])) {
+    const db = loadDb();
+    const inputKey = args[0].toLowerCase();
+    
+    // Cari aplikasi berdasarkan nama asli
+    let app = db[inputKey];
+    
+    // Jika tidak ketemu berdasarkan nama, cari berdasarkan shortcut
+    if (!app) {
+        app = Object.values(db).find(a => a.shortcut === inputKey);
+    }
+    
+    if (app) {
+      console.log(` Membuka ${app.name}...`);
+      launchApp(app.path);
+      process.exit(0); // Keluar langsung tanpa error setelah membuka
+    } else {
+      console.log(`Aplikasi atau shortcut "${args[0]}" tidak ditemukan. Coba ketik: zap list`);
+      process.exit(1); // Keluar dengan status error
+    }
+}
+
+program.parse(process.argv);
