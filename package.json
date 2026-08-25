@@ -2,13 +2,14 @@
   "name": "launcher",
   "version": "1.0.0",
   "description": "CLI App Launcher for your laptop",
-  "main": "bin/index.js",
+  "type": "commonjs",
+  "main": "bin/index.cjs",
   "bin": {
-    "zap": "./bin/index.js"
+    "zap": "./bin/index.cjs",
+    "open": "./bin/index.cjs"
   },
   "dependencies": {
     "commander": "^11.0.0",
-    "open": "^9.1.0",
     "prompts": "^2.4.2"
   }
 }
