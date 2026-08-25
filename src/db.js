@@ -1,31 +1,39 @@
 const fs = require('fs');
 const path = require('path');
 
-// Tentukan lokasi file database JSON (di folder data/apps.json)
 const dbPath = path.join(__dirname, '..', 'data', 'apps.json');
+const groupsPath = path.join(__dirname, '..', 'data', 'groups.json');
 
-// Fungsi untuk memastikan folder dan file ada. Jika tidak ada, buatkan.
-function ensureDbExists() {
-    const dir = path.dirname(dbPath);
+function ensureFileExists(filePath) {
+    const dir = path.dirname(filePath);
     if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
     }
-    if (!fs.existsSync(dbPath)) {
-        fs.writeFileSync(dbPath, '{}', 'utf-8');
+    if (!fs.existsSync(filePath)) {
+        fs.writeFileSync(filePath, '{}', 'utf-8');
     }
 }
 
-// Fungsi untuk membaca data dari JSON
 function loadDb() {
-    ensureDbExists();
+    ensureFileExists(dbPath);
     const data = fs.readFileSync(dbPath, 'utf-8');
     return JSON.parse(data);
 }
 
-// Fungsi untuk menyimpan data ke JSON
 function saveDb(data) {
-    ensureDbExists();
+    ensureFileExists(dbPath);
     fs.writeFileSync(dbPath, JSON.stringify(data, null, 2), 'utf-8');
 }
 
-module.exports = { loadDb, saveDb };
+function loadGroups() {
+    ensureFileExists(groupsPath);
+    const data = fs.readFileSync(groupsPath, 'utf-8');
+    return JSON.parse(data);
+}
+
+function saveGroups(data) {
+    ensureFileExists(groupsPath);
+    fs.writeFileSync(groupsPath, JSON.stringify(data, null, 2), 'utf-8');
+}
+
+module.exports = { loadDb, saveDb, loadGroups, saveGroups };

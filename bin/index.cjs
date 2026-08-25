@@ -5,7 +5,7 @@ const { spawn } = require('child_process');
 const prompts = require('prompts');
 const fs = require('fs');
 const path = require('path');
-const { loadDb, saveDb } = require('../src/db');
+const { loadDb, saveDb, loadGroups, saveGroups } = require('../src/db');
 const program = new Command();
 
 program
@@ -13,7 +13,7 @@ program
   .description('CLI App Launcher for your laptop')
   .version('1.0.0');
 
-// Fungsi native untuk membuka aplikasi menggunakan spawn
+// Fungsi native untuk membuka aplikasi
 function launchApp(appPath) {
     let command;
     let args = [];
@@ -30,21 +30,17 @@ function launchApp(appPath) {
     }
     
     try {
-        const child = spawn(command, args, {
-            detached: true,
-            stdio: 'ignore'
-        });
+        const child = spawn(command, args, { detached: true, stdio: 'ignore' });
         child.unref();
     } catch (error) {
         console.log(`Gagal membuka aplikasi: ${error.message}`);
     }
 }
 
-// Fungsi bantu untuk memindai folder secara rekursif
+// Fungsi bantu scan folder
 function scanDirectory(dir, fileList = []) {
     const files = fs.readdirSync(dir);
     const ignoreKeywords = ['uninstall', 'unins', 'readme', 'help', 'documentation', 'setup'];
-    
     for (const file of files) {
         const filePath = path.join(dir, file);
         if (fs.statSync(filePath).isDirectory()) {
@@ -52,7 +48,6 @@ function scanDirectory(dir, fileList = []) {
         } else if (file.endsWith('.lnk')) {
             const lowerCaseFile = file.toLowerCase();
             const isJunk = ignoreKeywords.some(keyword => lowerCaseFile.includes(keyword));
-            
             if (!isJunk) {
                 const appName = file.replace('.lnk', '').toLowerCase();
                 fileList.push({ name: appName, path: filePath });
@@ -62,20 +57,54 @@ function scanDirectory(dir, fileList = []) {
     return fileList;
 }
 
-// Fungsi khusus untuk mengurutkan
+// Fungsi sortir aplikasi
 function sortApps(db) {
     return Object.keys(db).sort((a, b) => {
         const appA = db[a];
         const appB = db[b];
-        
         if (appA.shortcut && !appB.shortcut) return -1;
         if (!appA.shortcut && appB.shortcut) return 1;
-        
         return appA.name.localeCompare(appB.name);
     });
 }
 
-// 1. PERINTAH ADD
+// Fungsi cari aplikasi
+function findApp(db, inputKey) {
+    let app = db[inputKey];
+    if (!app) {
+        app = Object.values(db).find(a => a.shortcut === inputKey);
+    }
+    return app;
+}
+
+// ==========================================
+// MENU TUTOR / HELP KUSTOM
+// ==========================================
+function showHelp() {
+    console.log(`
+Zap CLI - App Launcher
+=======================
+Cara pakai:
+
+  [Aplikasi]
+  zap scan                Memindai semua aplikasi di laptop
+  zap add <nama> <path>   Tambah aplikasi manual
+  zap list                Lihat daftar aplikasi
+  zap alias               Buat shortcut (contoh: zap -> jadi z)
+  zap delete              Hapus aplikasi dari daftar
+
+  [Grup / Workspace]
+  zap addgroup <nama> <app1> <app2>   Buat grup (contoh: zap addgroup work chrome vscode)
+  zap groups               Lihat daftar grup
+  zap delgroup <nama>      Hapus grup
+
+  [Buka Aplikasi / Grup]
+  zap <nama>               Buka aplikasi/grup (contoh: zap work atau zap chrome)
+  zap <sebagian_nama>      Cari aplikasi mirip (contoh: zap chr -> Chrome)
+`);
+}
+
+// 1. ADD
 program.command('add <name> <path>')
   .description('Menambahkan aplikasi baru ke launcher')
   .action((name, path) => {
@@ -85,217 +114,214 @@ program.command('add <name> <path>')
     console.log(`software "${name}" added successfully`);
   });
 
-// 2. PERINTAH ALIAS (Autocomplete)
+// 2. ALIAS (Autocomplete)
 program.command('alias')
   .description('Menambahkan nama panggilan (shortcut) untuk aplikasi')
   .action(async () => {
     const db = loadDb();
     const apps = sortApps(db);
+    if (apps.length === 0) return console.log('Belum ada aplikasi terdaftar.');
     
-    if (apps.length === 0) {
-      console.log('Belum ada aplikasi terdaftar.');
-      return;
-    }
-    
-    const choices = apps.map(key => ({
-      title: `${db[key].name} (Path: ${db[key].path})`,
-      value: key
-    }));
+    const choices = apps.map(key => ({ title: `${db[key].name} (Path: ${db[key].path})`, value: key }));
+    const appResponse = await prompts({ type: 'autocomplete', name: 'selectedApp', message: 'Ketik sebagian nama aplikasi', choices: choices });
+    if (!appResponse.selectedApp) return console.log('Dibatalkan.');
 
-    const appResponse = await prompts({
-      type: 'autocomplete',
-      name: 'selectedApp',
-      message: 'Ketik sebagian nama aplikasi untuk mencari',
-      choices: choices
-    });
+    const shortcutResponse = await prompts({ type: 'text', name: 'shortcut', message: `Masukkan shortcut untuk ${db[appResponse.selectedApp].name}:` });
+    if (!shortcutResponse.shortcut) return console.log('Dibatalkan.');
 
-    if (!appResponse.selectedApp) {
-      console.log('Proses dibatalkan.');
-      return;
-    }
-
-    const shortcutResponse = await prompts({
-      type: 'text',
-      name: 'shortcut',
-      message: `Masukkan shortcut untuk ${db[appResponse.selectedApp].name} (contoh: chr):`
-    });
-
-    if (!shortcutResponse.shortcut) {
-      console.log('Proses dibatalkan.');
-      return;
-    }
-
-    const shortcutKey = shortcutResponse.shortcut.toLowerCase();
-    db[appResponse.selectedApp].shortcut = shortcutKey;
+    db[appResponse.selectedApp].shortcut = shortcutResponse.shortcut.toLowerCase();
     saveDb(db);
-    
-    console.log(`\nShortcut "${shortcutKey}" berhasil ditambahkan.`);
-    console.log(`Sekarang Anda bisa membukanya dengan mengetik: zap ${shortcutKey}`);
+    console.log(`\nShortcut "${shortcutResponse.shortcut}" berhasil ditambahkan.`);
   });
 
-// 3. PERINTAH LIST
+// 3. LIST
 program.command('list')
   .description('Melihat daftar aplikasi yang sudah terdaftar')
   .action(() => {
     const db = loadDb();
     const apps = sortApps(db);
-    
-    if (apps.length === 0) {
-      console.log('there are no registered applications. Use: zap add <name> <path> or zap scan');
-      return;
-    }
+    if (apps.length === 0) return console.log('Belum ada aplikasi. Gunakan zap add atau zap scan');
     
     const withShortcut = [];
     const withoutShortcut = [];
+    apps.forEach(key => { db[key].shortcut ? withShortcut.push(db[key]) : withoutShortcut.push(db[key]); });
     
-    apps.forEach(key => {
-        if (db[key].shortcut) {
-            withShortcut.push(db[key]);
-        } else {
-            withoutShortcut.push(db[key]);
-        }
-    });
-    
-    console.log('ini yang ada shorcut' + '\n');
-    if (withShortcut.length > 0) {
-        withShortcut.forEach(app => {
-            console.log(`> ${app.name} (Shortcut: ${app.shortcut}) (Path: ${app.path})`);
-        });
-    } else {
-        console.log('(Belum ada aplikasi yang memiliki shortcut)');
-    }
-    
+    console.log('ini yang ada shorcut\n');
+    withShortcut.length > 0 ? withShortcut.forEach(a => console.log(`> ${a.name} (Shortcut: ${a.shortcut})`)) : console.log('(Belum ada)');
     console.log('\n---\n');
-    
-    console.log('ini yang tidak ada shorcut biar mudah di baca' + '\n');
-    if (withoutShortcut.length > 0) {
-        withoutShortcut.forEach(app => {
-            console.log(`> ${app.name} (Path: ${app.path})`);
-        });
-    } else {
-        console.log('(Semua aplikasi sudah memiliki shortcut)');
-    }
+    console.log('ini yang tidak ada shorcut\n');
+    withoutShortcut.length > 0 ? withoutShortcut.forEach(a => console.log(`> ${a.name}`)) : console.log('(Semua sudah punya shortcut)');
   });
 
-// 4. PERINTAH UPDATE
+// 4. UPDATE
 program.command('update <name> <new_path>')
-  .description('Memperbarui path dari aplikasi yang sudah terdaftar')
+  .description('Memperbarui path aplikasi')
   .action((name, new_path) => {
     const db = loadDb();
     const key = name.toLowerCase();
-    
-    if (!db[key]) {
-      console.log(`Aplikasi "${name}" tidak ditemukan. Cek kembali menggunakan: zap list`);
-      return;
-    }
-    
+    if (!db[key]) return console.log(`Aplikasi "${name}" tidak ditemukan.`);
     db[key].path = new_path;
     saveDb(db);
-    console.log(`Path untuk aplikasi "${name}" berhasil diperbarui.`);
+    console.log(`Path untuk "${name}" diperbarui.`);
   });
 
-// 5. PERINTAH DELETE (Autocomplete)
+// 5. DELETE (Autocomplete)
 program.command('delete')
-  .description('Menghapus aplikasi dari daftar secara interaktif')
+  .description('Menghapus aplikasi dari daftar')
   .action(async () => {
     const db = loadDb();
     const apps = sortApps(db);
+    if (apps.length === 0) return console.log('Tidak ada aplikasi untuk dihapus.');
     
-    if (apps.length === 0) {
-      console.log('Tidak ada aplikasi terdaftar untuk dihapus.');
-      return;
-    }
+    const choices = apps.map(key => ({ title: `${db[key].name} (Path: ${db[key].path})`, value: key }));
+    choices.push({ title: 'Batal', value: 'exit' });
     
-    const choices = apps.map(key => ({
-      title: `${db[key].name} (Path: ${db[key].path})`,
-      value: key
-    }));
-
-    choices.push({
-      title: 'Batal dan Keluar',
-      value: 'exit'
-    });
-    
-    const response = await prompts({
-      type: 'autocomplete',
-      name: 'selectedApp',
-      message: 'Ketik sebagian nama aplikasi yang ingin dihapus',
-      choices: choices
-    });
-    
+    const response = await prompts({ type: 'autocomplete', name: 'selectedApp', message: 'Ketik nama aplikasi yang ingin dihapus', choices: choices });
     if (response.selectedApp && response.selectedApp !== 'exit') {
       const appName = db[response.selectedApp].name;
       delete db[response.selectedApp];
       saveDb(db);
-      console.log(`Aplikasi "${appName}" berhasil dihapus.`);
+      console.log(`Aplikasi "${appName}" dihapus.`);
     } else {
-      console.log('Proses penghapusan dibatalkan.');
+      console.log('Dibatalkan.');
     }
   });
 
-// 6. PERINTAH SCAN
+// 6. SCAN
 program.command('scan')
-  .description('Otomatis memindai dan mendaftarkan aplikasi dari Windows Start Menu')
+  .description('Otomatis memindai aplikasi dari Windows Start Menu')
   .action(() => {
     const systemStartMenu = path.join(process.env.ALLUSERSPROFILE || 'C:\\ProgramData', 'Microsoft', 'Windows', 'Start Menu', 'Programs');
     const userStartMenu = path.join(process.env.APPDATA, 'Microsoft', 'Windows', 'Start Menu', 'Programs');
-
     let scannedApps = [];
-    
-    if (fs.existsSync(systemStartMenu)) {
-        scannedApps = scanDirectory(systemStartMenu, scannedApps);
-    }
-    if (fs.existsSync(userStartMenu)) {
-        scannedApps = scanDirectory(userStartMenu, scannedApps);
-    }
-
-    if (scannedApps.length === 0) {
-        console.log('Tidak ada aplikasi yang ditemukan saat pemindaian.');
-        return;
-    }
+    if (fs.existsSync(systemStartMenu)) scannedApps = scanDirectory(systemStartMenu, scannedApps);
+    if (fs.existsSync(userStartMenu)) scannedApps = scanDirectory(userStartMenu, scannedApps);
+    if (scannedApps.length === 0) return console.log('Tidak ada aplikasi ditemukan.');
 
     const db = loadDb();
     let newCount = 0;
-
     scannedApps.forEach(app => {
         if (!db[app.name]) {
-            db[app.name] = { 
-                name: app.name, 
-                path: app.path, 
-                shortcut: null 
-            };
+            db[app.name] = { name: app.name, path: app.path, shortcut: null };
             newCount++;
         }
     });
-
     saveDb(db);
-    console.log(`Scan selesai. ${newCount} aplikasi baru berhasil ditambahkan ke database.`);
-    console.log(`Total aplikasi terdaftar saat ini: ${Object.keys(db).length}.`);
+    console.log(`Scan selesai. ${newCount} aplikasi baru ditambahkan. Total: ${Object.keys(db).length}.`);
   });
 
-// 7. LOGIKA PANGGIL LANGSUNG DENGAN FUZZY SEARCH
-const args = process.argv.slice(2);
-const knownCommands = ['add', 'alias', 'list', 'update', 'delete', 'scan', '-h', '--help', '-V', '--version'];
+// ==========================================
+// FITUR GRUP (SIMPLIFIED)
+// ==========================================
 
-// Bungkus dalam async function agar bisa menggunakan await
+// 7. ADDGROUP
+program.command('addgroup <group_name> <apps...>')
+  .description('Membuat/menambah aplikasi ke grup. Contoh: zap addgroup work chrome vscode')
+  .action((groupName, apps) => {
+    const groups = loadGroups();
+    if (!groups[groupName]) groups[groupName] = [];
+    
+    const db = loadDb();
+    let addedCount = 0;
+    
+    apps.forEach(appName => {
+        const key = appName.toLowerCase();
+        const app = findApp(db, key);
+        if (!app) return console.log(`Aplikasi "${appName}" tidak ditemukan di database. Aborting.`);
+        
+        if (!groups[groupName].includes(key)) {
+            groups[groupName].push(key);
+            addedCount++;
+        }
+    });
+
+    saveGroups(groups);
+    console.log(`Berhasil menambahkan ${addedCount} aplikasi ke grup "${groupName}".`);
+    console.log(`Buka grup dengan mengetik: zap ${groupName}`);
+  });
+
+// 8. GROUPS (List Grup)
+program.command('groups')
+  .description('Melihat daftar grup dan isinya')
+  .action(() => {
+    const groups = loadGroups();
+    const keys = Object.keys(groups);
+    if (keys.length === 0) return console.log('Belum ada grup terdaftar.');
+    
+    const db = loadDb();
+    keys.forEach(g => {
+      console.log(`\n> ${g}:`);
+      if (groups[g].length === 0) {
+          console.log('  (kosong)');
+      } else {
+          groups[g].forEach(appKey => {
+              const app = db[appKey];
+              console.log(`  - ${app ? app.name : appKey + ' (NOT FOUND)'}`);
+          });
+      }
+    });
+  });
+
+// 9. DELGROUP
+program.command('delgroup <group_name>')
+  .description('Menghapus grup')
+  .action((groupName) => {
+    const groups = loadGroups();
+    if (!groups[groupName]) return console.log(`Grup "${groupName}" tidak ditemukan.`);
+    delete groups[groupName];
+    saveGroups(groups);
+    console.log(`Grup "${groupName}" berhasil dihapus.`);
+  });
+
+// ==========================================
+// LOGIKA PANGGIL LANGSUNG DENGAN FUZZY SEARCH & GRUP
+// ==========================================
+const args = process.argv.slice(2);
+const knownCommands = ['add', 'addgroup', 'alias', 'list', 'groups', 'delgroup', 'update', 'delete', 'scan', 'help', '-h', '--help', '-V', '--version'];
+
 (async () => {
-    if (args.length > 0 && !knownCommands.includes(args[0])) {
+    if (args.length === 0) {
+        showHelp();
+        process.exit(0);
+    }
+
+    if (args[0] === 'help' || args[0] === '-h' || args[0] === '--help') {
+        showHelp();
+        process.exit(0);
+    }
+
+    if (!knownCommands.includes(args[0])) {
         const db = loadDb();
+        const groups = loadGroups();
         const inputKey = args[0].toLowerCase();
         
-        // Cari aplikasi berdasarkan nama asli atau shortcut (Exact Match)
-        let app = db[inputKey];
-        if (!app) {
-            app = Object.values(db).find(a => a.shortcut === inputKey);
+        // 1. Cek dulu apakah input adalah nama GRUP
+        if (groups[inputKey]) {
+            const appsToRun = groups[inputKey];
+            if (appsToRun.length === 0) return console.log(`Grup "${inputKey}" kosong.`);
+            
+            console.log(`Menjalankan grup ${inputKey}...`);
+            appsToRun.forEach(appKey => {
+              const app = db[appKey];
+              if (app) {
+                console.log(` Membuka ${app.name}...`);
+                launchApp(app.path);
+              } else {
+                console.log(` Aplikasi "${appKey}" tidak ditemukan di database, dilewati.`);
+              }
+            });
+            process.exit(0);
         }
         
-        // Jika ketemu persis, langsung buka
+        // 2. Jika bukan grup, cari aplikasi (Exact Match)
+        let app = findApp(db, inputKey);
+        
         if (app) {
           console.log(` Membuka ${app.name}...`);
           launchApp(app.path);
           process.exit(0);
         } 
-        // Jika tidak ketemu persis, cari yang mirip (Fuzzy Search)
+        // 3. Jika tidak ketemu persis, cari yang mirip (Fuzzy Search)
         else {
           const matches = Object.values(db).filter(a => a.name.toLowerCase().includes(inputKey));
           
@@ -304,29 +330,17 @@ const knownCommands = ['add', 'alias', 'list', 'update', 'delete', 'scan', '-h',
             launchApp(matches[0].path);
             process.exit(0);
           } else if (matches.length > 1) {
-            const choices = matches.map(a => ({
-              title: `${a.name} (Shortcut: ${a.shortcut || '-'})`,
-              value: a.path
-            }));
-            
-            const response = await prompts({
-              type: 'autocomplete',
-              name: 'selectedApp',
-              message: `Ditemukan ${matches.length} aplikasi yang cocok. Pilih yang dimaksud:`,
-              choices: choices
-            });
-            
-            if (response.selectedApp) {
-              launchApp(response.selectedApp);
-            }
+            const choices = matches.map(a => ({ title: `${a.name} (Shortcut: ${a.shortcut || '-'})`, value: a.path }));
+            const response = await prompts({ type: 'autocomplete', name: 'selectedApp', message: `Ditemukan ${matches.length} aplikasi yang cocok:`, choices: choices });
+            if (response.selectedApp) launchApp(response.selectedApp);
             process.exit(0);
           } else {
-            console.log(`Aplikasi atau shortcut "${args[0]}" tidak ditemukan. Coba ketik: zap list`);
+            console.log(`Aplikasi, shortcut, atau grup "${args[0]}" tidak ditemukan.`);
+            console.log(`Ketik "zap help" untuk melihat cara pakai.`);
             process.exit(1);
           }
         }
     } else {
-        // Jika perintahnya knownCommands (seperti zap list), jalankan Commander
         program.parse(process.argv);
     }
 })();
