@@ -1,4 +1,4 @@
-# Run CLI
+# APP LAUNCHER OR WEBSITE LAUNCHER
 
 > A cross-platform CLI launcher for opening applications and workspaces directly from your terminal.
 
@@ -6,12 +6,13 @@
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](#platform-support)
 [![License](https://img.shields.io/badge/license-MIT-blue)](#license)
 
-Run CLI lets you open applications without switching to the Start menu, Launchpad, or application menu. Applications can be scanned automatically, assigned shortcuts, and organized into workspaces that can be launched together.
+Run CLI lets you open applications and websites without switching to the Start menu, Launchpad, or browser. Applications and website links can be added manually, assigned shortcuts, and organized into workspaces that can be launched together.
 
 ## Features
 
 - **Automatic application scanning** from the operating system's application locations.
 - **Open applications from the terminal** using their name, shortcut, or part of their name.
+- **Add and open websites manually**, including WhatsApp, YouTube, GitHub, and other URLs.
 - **Workspace groups** for launching multiple applications at once.
 - **Interactive management** for editing and deleting applications.
 - **Windows, macOS, and Linux support.**
@@ -66,6 +67,21 @@ Add an application manually:
 run add "Application Name" "/path/to/application"
 ```
 
+Add a website manually and open it with your default browser:
+
+```bash
+run add "WhatsApp" "https://web.whatsapp.com"
+run add "YouTube" "https://youtube.com"
+run add "GitHub" "https://github.com"
+```
+
+Open the saved website by its name:
+
+```bash
+run WhatsApp
+run YouTube
+```
+
 Create and launch a workspace:
 
 ```bash
@@ -86,7 +102,7 @@ run help
 | Command | Description |
 | --- | --- |
 | `run scan` | Scan and register applications from the operating system. |
-| `run add <name> <path>` | Add an application manually. |
+| `run add <name> <path-or-url>` | Add an application or website link manually. |
 | `run list` | Display registered applications and their shortcuts. |
 | `run info <name>` | Display an application's name, shortcut, and path. |
 | `run edit <name>` | Interactively edit an application's name, path, or shortcut. |
@@ -123,15 +139,28 @@ run help
 
 Scanned applications are stored locally. Run `run scan` again at any time to find new applications; existing entries will not be duplicated.
 
-## Local Data
+### Website Links
 
-Runtime data is stored in the `data/` directory:
+You can add any website manually by using its full URL with `run add`. Links such as `https://web.whatsapp.com`, `https://youtube.com`, and `https://github.com` open through your operating system's default browser.
 
-- `apps.json` stores applications, paths, and shortcuts.
-- `groups.json` stores workspace groups.
-- `config.json` stores the language preference.
+## Project Structure
 
-These files are created automatically if they do not already exist.
+```text
+launcher/
+├── bin/
+│   └── index.cjs       # Main CLI entry point
+├── src/
+│   └── db.js           # Local data and configuration handler
+├── data/               # Runtime data, created automatically
+│   ├── apps.json       # Applications, paths, and shortcuts
+│   ├── groups.json     # Workspace groups
+│   └── config.json     # Language preference
+├── package.json
+└── README.MD
+```
+
+Runtime data is stored locally in the `data/` directory. These files are created automatically if they do not already exist.
+
 
 ## Contributing
 
