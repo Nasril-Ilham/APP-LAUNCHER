@@ -3,6 +3,7 @@ const path = require('path');
 
 const dbPath = path.join(__dirname, '..', 'data', 'apps.json');
 const groupsPath = path.join(__dirname, '..', 'data', 'groups.json');
+const configPath = path.join(__dirname, '..', 'data', 'config.json');
 
 function ensureFileExists(filePath) {
     const dir = path.dirname(filePath);
@@ -36,4 +37,18 @@ function saveGroups(data) {
     fs.writeFileSync(groupsPath, JSON.stringify(data, null, 2), 'utf-8');
 }
 
-module.exports = { loadDb, saveDb, loadGroups, saveGroups };
+// Fitur baru untuk menyimpan bahasa
+function loadConfig() {
+    ensureFileExists(configPath);
+    const data = fs.readFileSync(configPath, 'utf-8');
+    let config = JSON.parse(data);
+    if (!config.lang) config.lang = 'id'; // Default Indonesia
+    return config;
+}
+
+function saveConfig(data) {
+    ensureFileExists(configPath);
+    fs.writeFileSync(configPath, JSON.stringify(data, null, 2), 'utf-8');
+}
+
+module.exports = { loadDb, saveDb, loadGroups, saveGroups, loadConfig, saveConfig };
