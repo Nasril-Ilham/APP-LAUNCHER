@@ -5,7 +5,7 @@
   "type": "commonjs",
   "main": "bin/index.cjs",
   "bin": {
-    "zap": "./bin/index.cjs",
+    "run": "./bin/index.cjs",
     "open": "./bin/index.cjs"
   },
   "dependencies": {
