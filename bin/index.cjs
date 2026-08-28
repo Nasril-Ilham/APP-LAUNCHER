@@ -5,6 +5,7 @@ const { spawn } = require('child_process');
 const prompts = require('prompts');
 const fs = require('fs');
 const path = require('path');
+const chalk = require('chalk');
 const { loadDb, saveDb, loadGroups, saveGroups } = require('../src/db');
 const program = new Command();
 
@@ -33,7 +34,7 @@ function launchApp(appPath) {
         const child = spawn(command, args, { detached: true, stdio: 'ignore' });
         child.unref();
     } catch (error) {
-        console.log(`Gagal membuka aplikasi: ${error.message}`);
+        console.log(chalk.red(`Gagal membuka aplikasi: ${error.message}`));
     }
 }
 
@@ -78,29 +79,31 @@ function findApp(db, inputKey) {
 }
 
 // ==========================================
-// MENU TUTOR / HELP KUSTOM
+// MENU TUTOR / HELP KUSTOM (DENGAN WARNA)
 // ==========================================
 function showHelp() {
     console.log(`
-Zap CLI - App Launcher
-=======================
-Cara pakai:
+ ${chalk.bold.white('App Launcher')}
+ ${chalk.white('=======================')}
+ ${chalk.bold.green('Cara pakai:')}
 
-  [Aplikasi]
-  zap scan                Memindai semua aplikasi di laptop
-  zap add <nama> <path>   Tambah aplikasi manual
-  zap list                Lihat daftar aplikasi
-  zap alias               Buat shortcut (contoh: zap -> jadi z)
-  zap delete              Hapus aplikasi dari daftar
+  ${chalk.magenta.bold('[Aplikasi]')}
+  ${chalk.bold.white('zap scan')}                ${chalk.gray('Memindai semua aplikasi di laptop')}
+  ${chalk.bold.white('zap add <nama> <path>')}   ${chalk.gray('Tambah aplikasi manual')}
+  ${chalk.bold.white('zap list')}                ${chalk.gray('Lihat daftar aplikasi')}
+  ${chalk.bold.white('zap info <nama>')}         ${chalk.gray('Lihat detail lokasi file aplikasi')}
+  ${chalk.bold.white('zap alias')}               ${chalk.gray('Buat shortcut (contoh: zap -> jadi z)')}
+  ${chalk.bold.white('zap delete')}              ${chalk.gray('Hapus aplikasi dari daftar')}
 
-  [Grup / Workspace]
-  zap addgroup <nama> <app1> <app2>   Buat grup (contoh: zap addgroup work chrome vscode)
-  zap groups               Lihat daftar grup
-  zap delgroup <nama>      Hapus grup
+  ${chalk.magenta.bold('[Grup / Workspace]')}
+  ${chalk.bold.white('zap addgroup <nama> <app1> <app2>')}   ${chalk.gray('Buat grup baru (contoh: zap addgroup work chrome vscode)')}
+  ${chalk.bold.white('zap addto <nama> <app1> <app2>')}      ${chalk.gray('Tambah aplikasi ke grup yang sudah ada (contoh: zap addto edit magnific)')}
+  ${chalk.bold.white('zap groups')}                          ${chalk.gray('Lihat daftar grup')}
+  ${chalk.bold.white('zap delgroup <nama>')}                 ${chalk.gray('Hapus grup')}
 
-  [Buka Aplikasi / Grup]
-  zap <nama>               Buka aplikasi/grup (contoh: zap work atau zap chrome)
-  zap <sebagian_nama>      Cari aplikasi mirip (contoh: zap chr -> Chrome)
+  ${chalk.magenta.bold('[Buka Aplikasi / Grup]')}
+  ${chalk.bold.white('zap or open <nama>')}               ${chalk.gray('Buka aplikasi/grup (contoh: zap work atau zap chrome)')}
+  ${chalk.bold.white('zap or open <sebagian_nama>')}      ${chalk.gray('Cari aplikasi mirip (contoh: zap chr -> Chrome)')}
 `);
 }
 
@@ -111,69 +114,92 @@ program.command('add <name> <path>')
     const db = loadDb();
     db[name.toLowerCase()] = { name: name, path: path, shortcut: null };
     saveDb(db);
-    console.log(`software "${name}" added successfully`);
+    console.log(chalk.green(`software "${name}" added successfully`));
   });
 
-// 2. ALIAS (Autocomplete)
+// 2. INFO (Melihat path aplikasi)
+program.command('info <name>')
+  .description('Melihat detail lokasi file aplikasi')
+  .action((name) => {
+    const db = loadDb();
+    const key = name.toLowerCase();
+    const app = findApp(db, key);
+    
+    if (!app) return console.log(chalk.red(`Aplikasi "${name}" tidak ditemukan.`));
+    
+    console.log(chalk.bold.cyan(`\nDetail Aplikasi:`));
+    console.log(chalk.green(`  Nama     : ${app.name}`));
+    console.log(chalk.green(`  Shortcut : ${app.shortcut || '-'}`));
+    console.log(chalk.green(`  Path     : ${app.path}\n`));
+  });
+
+// 3. ALIAS (Autocomplete tanpa Path)
 program.command('alias')
   .description('Menambahkan nama panggilan (shortcut) untuk aplikasi')
   .action(async () => {
     const db = loadDb();
     const apps = sortApps(db);
-    if (apps.length === 0) return console.log('Belum ada aplikasi terdaftar.');
+    if (apps.length === 0) return console.log(chalk.yellow('Belum ada aplikasi terdaftar.'));
     
-    const choices = apps.map(key => ({ title: `${db[key].name} (Path: ${db[key].path})`, value: key }));
+    const choices = apps.map(key => ({ 
+      title: `${db[key].name} ${db[key].shortcut ? chalk.gray(`(${db[key].shortcut})`) : ''}`, 
+      value: key 
+    }));
+    
     const appResponse = await prompts({ type: 'autocomplete', name: 'selectedApp', message: 'Ketik sebagian nama aplikasi', choices: choices });
-    if (!appResponse.selectedApp) return console.log('Dibatalkan.');
+    if (!appResponse.selectedApp) return console.log(chalk.yellow('Dibatalkan.'));
 
     const shortcutResponse = await prompts({ type: 'text', name: 'shortcut', message: `Masukkan shortcut untuk ${db[appResponse.selectedApp].name}:` });
-    if (!shortcutResponse.shortcut) return console.log('Dibatalkan.');
+    if (!shortcutResponse.shortcut) return console.log(chalk.yellow('Dibatalkan.'));
 
     db[appResponse.selectedApp].shortcut = shortcutResponse.shortcut.toLowerCase();
     saveDb(db);
-    console.log(`\nShortcut "${shortcutResponse.shortcut}" berhasil ditambahkan.`);
+    console.log(chalk.green(`\nShortcut "${shortcutResponse.shortcut}" berhasil ditambahkan.`));
   });
 
-// 3. LIST
+// 4. LIST (Tanpa Path)
 program.command('list')
   .description('Melihat daftar aplikasi yang sudah terdaftar')
   .action(() => {
     const db = loadDb();
     const apps = sortApps(db);
-    if (apps.length === 0) return console.log('Belum ada aplikasi. Gunakan zap add atau zap scan');
+    if (apps.length === 0) return console.log(chalk.yellow('Belum ada aplikasi. Gunakan zap add atau zap scan'));
     
     const withShortcut = [];
     const withoutShortcut = [];
     apps.forEach(key => { db[key].shortcut ? withShortcut.push(db[key]) : withoutShortcut.push(db[key]); });
     
-    console.log('ini yang ada shorcut\n');
-    withShortcut.length > 0 ? withShortcut.forEach(a => console.log(`> ${a.name} (Shortcut: ${a.shortcut})`)) : console.log('(Belum ada)');
-    console.log('\n---\n');
-    console.log('ini yang tidak ada shorcut\n');
-    withoutShortcut.length > 0 ? withoutShortcut.forEach(a => console.log(`> ${a.name}`)) : console.log('(Semua sudah punya shortcut)');
+    console.log(chalk.bold.cyan('ini yang ada shorcut\n'));
+    withShortcut.length > 0 ? withShortcut.forEach(a => console.log(chalk.green(`> ${a.name} ${chalk.gray(`(${a.shortcut})`)}`))) : console.log(chalk.gray('(Belum ada)'));
+    console.log(chalk.gray('\n---\n'));
+    console.log(chalk.bold.cyan('ini yang tidak ada shorcut\n'));
+    withoutShortcut.length > 0 ? withoutShortcut.forEach(a => console.log(`> ${a.name}`)) : console.log(chalk.gray('(Semua sudah punya shortcut)'));
   });
 
-// 4. UPDATE
+// 5. UPDATE
 program.command('update <name> <new_path>')
   .description('Memperbarui path aplikasi')
   .action((name, new_path) => {
     const db = loadDb();
     const key = name.toLowerCase();
-    if (!db[key]) return console.log(`Aplikasi "${name}" tidak ditemukan.`);
+    if (!db[key]) return console.log(chalk.red(`Aplikasi "${name}" tidak ditemukan.`));
     db[key].path = new_path;
     saveDb(db);
-    console.log(`Path untuk "${name}" diperbarui.`);
+    console.log(chalk.green(`Path untuk "${name}" diperbarui.`));
   });
 
-// 5. DELETE (Autocomplete)
+// 6. DELETE (Autocomplete tanpa Path)
 program.command('delete')
   .description('Menghapus aplikasi dari daftar')
   .action(async () => {
     const db = loadDb();
     const apps = sortApps(db);
-    if (apps.length === 0) return console.log('Tidak ada aplikasi untuk dihapus.');
+    if (apps.length === 0) return console.log(chalk.yellow('Tidak ada aplikasi untuk dihapus.'));
     
-    const choices = apps.map(key => ({ title: `${db[key].name} (Path: ${db[key].path})`, value: key }));
+    const choices = apps.map(key => ({ 
+      title: `${db[key].name} ${db[key].shortcut ? chalk.gray(`(${db[key].shortcut})`) : ''}`, 
+      value: key 
+    }));
     choices.push({ title: 'Batal', value: 'exit' });
     
     const response = await prompts({ type: 'autocomplete', name: 'selectedApp', message: 'Ketik nama aplikasi yang ingin dihapus', choices: choices });
@@ -181,13 +207,13 @@ program.command('delete')
       const appName = db[response.selectedApp].name;
       delete db[response.selectedApp];
       saveDb(db);
-      console.log(`Aplikasi "${appName}" dihapus.`);
+      console.log(chalk.red(`Aplikasi "${appName}" dihapus.`));
     } else {
-      console.log('Dibatalkan.');
+      console.log(chalk.yellow('Dibatalkan.'));
     }
   });
 
-// 6. SCAN
+// 7. SCAN
 program.command('scan')
   .description('Otomatis memindai aplikasi dari Windows Start Menu')
   .action(() => {
@@ -196,7 +222,7 @@ program.command('scan')
     let scannedApps = [];
     if (fs.existsSync(systemStartMenu)) scannedApps = scanDirectory(systemStartMenu, scannedApps);
     if (fs.existsSync(userStartMenu)) scannedApps = scanDirectory(userStartMenu, scannedApps);
-    if (scannedApps.length === 0) return console.log('Tidak ada aplikasi ditemukan.');
+    if (scannedApps.length === 0) return console.log(chalk.red('Tidak ada aplikasi ditemukan.'));
 
     const db = loadDb();
     let newCount = 0;
@@ -207,27 +233,28 @@ program.command('scan')
         }
     });
     saveDb(db);
-    console.log(`Scan selesai. ${newCount} aplikasi baru ditambahkan. Total: ${Object.keys(db).length}.`);
+    console.log(chalk.green(`Scan selesai. ${newCount} aplikasi baru ditambahkan. Total: ${Object.keys(db).length}.`));
   });
 
 // ==========================================
 // FITUR GRUP (SIMPLIFIED)
 // ==========================================
 
-// 7. ADDGROUP
+// 8. ADDGROUP (Untuk membuat grup baru)
 program.command('addgroup <group_name> <apps...>')
-  .description('Membuat/menambah aplikasi ke grup. Contoh: zap addgroup work chrome vscode')
+  .description('Membuat grup baru. Contoh: zap addgroup work chrome vscode')
   .action((groupName, apps) => {
     const groups = loadGroups();
-    if (!groups[groupName]) groups[groupName] = [];
+    if (groups[groupName]) return console.log(chalk.red(`Grup "${groupName}" sudah ada. Gunakan "zap addto ${groupName} <app>" untuk menambah aplikasi.`));
     
+    groups[groupName] = [];
     const db = loadDb();
     let addedCount = 0;
     
     apps.forEach(appName => {
         const key = appName.toLowerCase();
         const app = findApp(db, key);
-        if (!app) return console.log(`Aplikasi "${appName}" tidak ditemukan di database. Aborting.`);
+        if (!app) return console.log(chalk.red(`Aplikasi "${appName}" tidak ditemukan di database. Aborting.`));
         
         if (!groups[groupName].includes(key)) {
             groups[groupName].push(key);
@@ -236,48 +263,75 @@ program.command('addgroup <group_name> <apps...>')
     });
 
     saveGroups(groups);
-    console.log(`Berhasil menambahkan ${addedCount} aplikasi ke grup "${groupName}".`);
-    console.log(`Buka grup dengan mengetik: zap ${groupName}`);
+    console.log(chalk.green(`Berhasil membuat grup "${groupName}" dengan ${addedCount} aplikasi.`));
+    console.log(chalk.cyan(`Buka grup dengan mengetik: zap ${groupName}`));
   });
 
-// 8. GROUPS (List Grup)
+// 9. ADDTO (Untuk menambahkan aplikasi ke grup yang sudah ada)
+program.command('addto <group_name> <apps...>')
+  .description('Menambah aplikasi ke grup yang sudah ada. Contoh: zap addto edit magnific')
+  .action((groupName, apps) => {
+    const groups = loadGroups();
+    if (!groups[groupName]) return console.log(chalk.red(`Grup "${groupName}" tidak ditemukan. Buat dulu dengan zap addgroup.`));
+    
+    const db = loadDb();
+    let addedCount = 0;
+    
+    apps.forEach(appName => {
+        const key = appName.toLowerCase();
+        const app = findApp(db, key);
+        if (!app) return console.log(chalk.red(`Aplikasi "${appName}" tidak ditemukan di database. Aborting.`));
+        
+        if (!groups[groupName].includes(key)) {
+            groups[groupName].push(key);
+            addedCount++;
+        } else {
+            console.log(chalk.yellow(`Aplikasi "${appName}" sudah ada di grup "${groupName}".`));
+        }
+    });
+
+    saveGroups(groups);
+    console.log(chalk.green(`Berhasil menambahkan ${addedCount} aplikasi ke grup "${groupName}".`));
+  });
+
+// 10. GROUPS (List Grup)
 program.command('groups')
   .description('Melihat daftar grup dan isinya')
   .action(() => {
     const groups = loadGroups();
     const keys = Object.keys(groups);
-    if (keys.length === 0) return console.log('Belum ada grup terdaftar.');
+    if (keys.length === 0) return console.log(chalk.yellow('Belum ada grup terdaftar.'));
     
     const db = loadDb();
     keys.forEach(g => {
-      console.log(`\n> ${g}:`);
+      console.log(chalk.bold.cyan(`\n> ${g}:`));
       if (groups[g].length === 0) {
-          console.log('  (kosong)');
+          console.log(chalk.gray('  (kosong)'));
       } else {
           groups[g].forEach(appKey => {
               const app = db[appKey];
-              console.log(`  - ${app ? app.name : appKey + ' (NOT FOUND)'}`);
+              console.log(`  - ${app ? chalk.green(app.name) : chalk.red(appKey + ' (NOT FOUND)')}`);
           });
       }
     });
   });
 
-// 9. DELGROUP
+// 11. DELGROUP
 program.command('delgroup <group_name>')
   .description('Menghapus grup')
   .action((groupName) => {
     const groups = loadGroups();
-    if (!groups[groupName]) return console.log(`Grup "${groupName}" tidak ditemukan.`);
+    if (!groups[groupName]) return console.log(chalk.red(`Grup "${groupName}" tidak ditemukan.`));
     delete groups[groupName];
     saveGroups(groups);
-    console.log(`Grup "${groupName}" berhasil dihapus.`);
+    console.log(chalk.red(`Grup "${groupName}" berhasil dihapus.`));
   });
 
 // ==========================================
 // LOGIKA PANGGIL LANGSUNG DENGAN FUZZY SEARCH & GRUP
 // ==========================================
 const args = process.argv.slice(2);
-const knownCommands = ['add', 'addgroup', 'alias', 'list', 'groups', 'delgroup', 'update', 'delete', 'scan', 'help', '-h', '--help', '-V', '--version'];
+const knownCommands = ['add', 'addgroup', 'addto', 'alias', 'list', 'groups', 'delgroup', 'info', 'update', 'delete', 'scan', 'help', '-h', '--help', '-V', '--version'];
 
 (async () => {
     if (args.length === 0) {
@@ -298,16 +352,16 @@ const knownCommands = ['add', 'addgroup', 'alias', 'list', 'groups', 'delgroup',
         // 1. Cek dulu apakah input adalah nama GRUP
         if (groups[inputKey]) {
             const appsToRun = groups[inputKey];
-            if (appsToRun.length === 0) return console.log(`Grup "${inputKey}" kosong.`);
+            if (appsToRun.length === 0) return console.log(chalk.yellow(`Grup "${inputKey}" kosong.`));
             
-            console.log(`Menjalankan grup ${inputKey}...`);
+            console.log(chalk.cyan(`Menjalankan grup ${inputKey}...`));
             appsToRun.forEach(appKey => {
               const app = db[appKey];
               if (app) {
-                console.log(` Membuka ${app.name}...`);
+                console.log(chalk.green(` Membuka ${app.name}...`));
                 launchApp(app.path);
               } else {
-                console.log(` Aplikasi "${appKey}" tidak ditemukan di database, dilewati.`);
+                console.log(chalk.red(` Aplikasi "${appKey}" tidak ditemukan di database, dilewati.`));
               }
             });
             process.exit(0);
@@ -317,7 +371,7 @@ const knownCommands = ['add', 'addgroup', 'alias', 'list', 'groups', 'delgroup',
         let app = findApp(db, inputKey);
         
         if (app) {
-          console.log(` Membuka ${app.name}...`);
+          console.log(chalk.green(` Membuka ${app.name}...`));
           launchApp(app.path);
           process.exit(0);
         } 
@@ -326,7 +380,7 @@ const knownCommands = ['add', 'addgroup', 'alias', 'list', 'groups', 'delgroup',
           const matches = Object.values(db).filter(a => a.name.toLowerCase().includes(inputKey));
           
           if (matches.length === 1) {
-            console.log(`Mungkin maksud Anda ${matches[0].name}? Membuka...`);
+            console.log(chalk.cyan(`Mungkin maksud Anda ${matches[0].name}? Membuka...`));
             launchApp(matches[0].path);
             process.exit(0);
           } else if (matches.length > 1) {
@@ -335,8 +389,8 @@ const knownCommands = ['add', 'addgroup', 'alias', 'list', 'groups', 'delgroup',
             if (response.selectedApp) launchApp(response.selectedApp);
             process.exit(0);
           } else {
-            console.log(`Aplikasi, shortcut, atau grup "${args[0]}" tidak ditemukan.`);
-            console.log(`Ketik "zap help" untuk melihat cara pakai.`);
+            console.log(chalk.red(`Aplikasi, shortcut, atau grup "${args[0]}" tidak ditemukan.`));
+            console.log(chalk.gray(`Ketik "zap help" untuk melihat cara pakai.`));
             process.exit(1);
           }
         }
