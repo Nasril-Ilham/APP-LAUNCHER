@@ -37,7 +37,6 @@ function saveGroups(data) {
     fs.writeFileSync(groupsPath, JSON.stringify(data, null, 2), 'utf-8');
 }
 
-// Fitur baru untuk menyimpan bahasa
 function loadConfig() {
     ensureFileExists(configPath);
     const data = fs.readFileSync(configPath, 'utf-8');
