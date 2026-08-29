@@ -24,7 +24,9 @@ program.command('add <name> <path>').action((name, path) => {
     console.log(chalk.green(T.add_success(name)));
 });
 
-program.command('info <name>').action((name) => {
+
+program.command('info [name...]').action((nameArr) => {
+    const name = nameArr.join(' ');
     const app = findApp(loadDb(), name.toLowerCase());
     if (!app) return console.log(chalk.red(T.app_not_found(name)));
     console.log(chalk.bold.cyan(`\n${T.detail_app}`));
@@ -33,9 +35,11 @@ program.command('info <name>').action((name) => {
     console.log(chalk.green(`  ${T.path}     : ${app.path}\n`));
 });
 
-program.command('edit <name>').action(async (name) => {
-    const db = loadDb();
+
+program.command('edit [name...]').action(async (nameArr) => {
+    const name = nameArr.join(' ');
     const key = name.toLowerCase();
+    const db = loadDb();
     const app = findApp(db, key);
     if (!app) return console.log(chalk.red(T.app_not_found(name)));
 
@@ -128,12 +132,13 @@ program.command('addto <group_name> <apps...>').action((gn, apps) => {
     console.log(chalk.green(T.grp_add_success(count, gn)));
 });
 
-program.command('delfrom <group_name> <app_name>').action((gn, an) => {
+
+program.command('delfrom <group_name> [app_name...]').action((gn, anArr) => {
+    const an = anArr.join(' ');
     const groups = loadGroups();
     if (!groups[gn]) return console.log(chalk.red(T.grp_not_found(gn)));
-    const ak = an.toLowerCase();
-    if (!groups[gn].includes(ak)) return console.log(chalk.red(T.app_not_in_grp(an, gn)));
-    groups[gn] = groups[gn].filter(a => a !== ak);
+    if (!groups[gn].includes(an.toLowerCase())) return console.log(chalk.red(T.app_not_in_grp(an, gn)));
+    groups[gn] = groups[gn].filter(a => a !== an.toLowerCase());
     saveGroups(groups);
     console.log(chalk.green(T.grp_rm_success(an, gn)));
 });
