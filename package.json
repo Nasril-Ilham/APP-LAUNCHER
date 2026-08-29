@@ -6,7 +6,9 @@
   "main": "bin/index.cjs",
   "bin": {
     "run": "./bin/index.cjs",
-    "open": "./bin/index.cjs"
+    "open": "./bin/index.cjs",
+    "zap": "./bin/index.cjs"
+    
   },
   "dependencies": {
     "chalk": "^4.1.2",
