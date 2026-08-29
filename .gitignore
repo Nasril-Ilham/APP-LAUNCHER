@@ -1,0 +1,24 @@
+node_modules/
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.jks
+*.log
+.DS_Store
+Thumbs.db
+
+# Local app data that may contain machine-specific paths or user setup
+# keep these out of git history
+# they are runtime-generated and vary per machine
+# data/apps.json
+# data/config.json
+# data/groups.json
+data/apps.json
+data/config.json
+data/groups.json
+data/*.local.json
