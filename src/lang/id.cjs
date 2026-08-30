@@ -45,5 +45,6 @@ module.exports = {
     fuzzy_guess: (n) => `Mungkin maksud Anda ${n}? Membuka...`,
     fuzzy_found: (c) => `Ditemukan ${c} aplikasi yang cocok:`,
     not_found_generic: (n) => `Aplikasi, shortcut, atau grup "${n}" tidak ditemukan.`,
-    type_help: "Ketik 'run help' untuk melihat cara pakai."
+    type_help: "Ketik 'run help' untuk melihat cara pakai.",
+    edit_prompt: "Ketik nama aplikasi yang ingin diubah"
 };

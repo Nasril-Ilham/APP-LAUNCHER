@@ -37,12 +37,28 @@ program.command('info [name...]').action((nameArr) => {
 
 
 program.command('edit [name...]').action(async (nameArr) => {
-    const name = nameArr.join(' ');
-    const key = name.toLowerCase();
     const db = loadDb();
-    const app = findApp(db, key);
-    if (!app) return console.log(chalk.red(T.app_not_found(name)));
+    const apps = sortApps(db);
+    let key, app;
 
+    if (nameArr && nameArr.length > 0) {
+        const name = nameArr.join(' ');
+        key = name.toLowerCase();
+        app = findApp(db, key);
+        if (!app) return console.log(chalk.red(T.app_not_found(name)));
+    } else {
+        if (apps.length === 0) return console.log(chalk.yellow(T.no_apps_list));
+        const choices = apps.map(k => ({ 
+            title: `${db[k].name} ${db[k].shortcut ? chalk.gray(`(${db[k].shortcut})`) : ''}`, 
+            value: k 
+        }));
+        const res = await prompts({ type: 'autocomplete', name: 'selectedApp', message: T.edit_prompt, choices: choices });
+        if (!res.selectedApp) return console.log(chalk.yellow(T.cancelled));
+        key = res.selectedApp;
+        app = db[key];
+    }
+
+    
     const editRes = await prompts({ type: 'select', name: 'field', message: T.edit_what, choices: [
         { title: T.opt_name, value: 'name' }, { title: T.opt_path, value: 'path' }, { title: T.opt_shortcut, value: 'shortcut' }, { title: T.opt_cancel, value: 'exit' }
     ]});

@@ -45,5 +45,6 @@ module.exports = {
     fuzzy_guess: (n) => `Did you mean ${n}? Opening...`,
     fuzzy_found: (c) => `Found ${c} matching apps:`,
     not_found_generic: (n) => `Application, shortcut, or group "${n}" not found.`,
-    type_help: "Type 'run help' for usage instructions."
+    type_help: "Type 'run help' for usage instructions.",
+    edit_prompt: "Type the name of the app to edit"
 };
