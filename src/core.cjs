@@ -51,6 +51,10 @@ function parseLaunchCommand(commandLine) {
     const trimmed = String(commandLine || '').trim();
     if (!trimmed) return { command: '', args: [] };
 
+    if (/^[a-zA-Z]:[\\/]/.test(trimmed) || /^\\\\/.test(trimmed)) {
+        return { command: trimmed, args: [] };
+    }
+
     const tokens = splitCommandLine(trimmed);
     if (!tokens.length) return { command: '', args: [] };
 
