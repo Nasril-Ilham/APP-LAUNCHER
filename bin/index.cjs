@@ -6,7 +6,7 @@ const chalk = require('chalk');
 const path = require('path');
 const { loadDb, saveDb, loadGroups, saveGroups, loadConfig, saveConfig } = require('../src/db.cjs');
 const { loadTranslations, getT } = require('../src/lang/index.cjs');
-const { launchApp, scanDirectory, sortApps, findApp, handleAppLaunch } = require('../src/core.cjs');
+const { launchApp, scanDirectory, sortApps, findApp, handleAppLaunch, quoteCommandArg } = require('../src/core.cjs');
 const { showBanner, showHelp } = require('../src/help.cjs');
 
 const program = new Command();
@@ -17,13 +17,17 @@ const T = getT();
 
 // --- COMMANDS ---
 
-program.command('add <name> <path>').action((name, path) => {
+
+// Ganti perintah add yang lama dengan ini
+program.command('add <name> [args...]')
+  .allowUnknownOption(true) // Abaikan error --profile-directory
+  .action((name) => {
     const db = loadDb();
-    db[name.toLowerCase()] = { name, path, shortcut: null };
+    const rawPath = process.argv.slice(4).map(arg => quoteCommandArg(arg)).join(' ');
+    db[name.toLowerCase()] = { name, path: rawPath, shortcut: null };
     saveDb(db);
     console.log(chalk.green(T.add_success(name)));
-});
-
+  });
 
 program.command('info [name...]').action((nameArr) => {
     const name = nameArr.join(' ');

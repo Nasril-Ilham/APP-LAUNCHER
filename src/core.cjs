@@ -6,14 +6,141 @@ const prompts = require('prompts');
 const { loadDb, saveDb, loadGroups, saveGroups } = require('./db.cjs');
 const { getT } = require('./lang/index.cjs');
 
+function splitCommandLine(commandLine) {
+    const tokens = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < commandLine.length; i++) {
+        const char = commandLine[i];
+
+        if (char === '"') {
+            if (inQuotes && commandLine[i + 1] === '"') {
+                current += '"';
+                i += 1;
+            } else {
+                inQuotes = !inQuotes;
+            }
+            continue;
+        }
+
+        if (/\s/.test(char) && !inQuotes) {
+            if (current) {
+                tokens.push(current);
+                current = '';
+            }
+            continue;
+        }
+
+        current += char;
+    }
+
+    if (current) tokens.push(current);
+    return tokens;
+}
+
+function quoteCommandArg(arg) {
+    if (arg === undefined || arg === null) return '""';
+    const value = String(arg);
+    if (value === '') return '""';
+    if (/^[^\s"]+$/.test(value)) return value;
+    return `"${value.replace(/"/g, '\\"')}"`;
+}
+
+function parseLaunchCommand(commandLine) {
+    const trimmed = String(commandLine || '').trim();
+    if (!trimmed) return { command: '', args: [] };
+
+    const tokens = splitCommandLine(trimmed);
+    if (!tokens.length) return { command: '', args: [] };
+
+    return { command: tokens[0], args: tokens.slice(1) };
+}
+
+function isUrl(value) {
+    return /^https?:\/\//i.test(String(value || '').trim());
+}
+
+function isBatchFile(value) {
+    return /\.(bat|cmd)$/i.test(String(value || '').trim());
+}
+
 function launchApp(appPath) {
-    let command, args = [];
-    if (process.platform === 'win32') { command = 'cmd'; args = ['/c', 'start', '""', appPath]; }
-    else if (process.platform === 'darwin') { command = 'open'; args = [appPath]; }
-    else { command = 'xdg-open'; args = [appPath]; }
-    
+    const rawCommand = typeof appPath === 'string' ? appPath.trim() : '';
+    if (!rawCommand) {
+        console.log(chalk.yellow('No app path provided.'));
+        return;
+    }
+
     try {
-        const child = spawn(command, args, { detached: true, stdio: 'ignore' });
+        if (process.platform === 'win32') {
+            const { command, args } = parseLaunchCommand(rawCommand);
+            if (!command) return;
+
+            if (isUrl(command)) {
+                const child = spawn('cmd.exe', ['/c', 'start', '""', command, ...args], {
+                    detached: true,
+                    stdio: 'ignore',
+                    shell: false,
+                    windowsHide: true,
+                });
+                child.unref();
+                return;
+            }
+
+            if (isBatchFile(command)) {
+                const child = spawn('cmd.exe', ['/c', command, ...args], {
+                    detached: true,
+                    stdio: 'ignore',
+                    shell: false,
+                    windowsHide: true,
+                });
+                child.unref();
+                return;
+            }
+
+            if (/\.lnk$/i.test(command)) {
+                const child = spawn('cmd.exe', ['/c', 'start', '""', command, ...args], {
+                    detached: true,
+                    stdio: 'ignore',
+                    shell: false,
+                    windowsHide: true,
+                });
+                child.unref();
+                return;
+            }
+
+            const child = spawn(command, args, {
+                detached: true,
+                stdio: 'ignore',
+                shell: false,
+                windowsHide: true,
+            });
+            child.unref();
+            return;
+        }
+
+        if (process.platform === 'darwin') {
+            if (/^https?:\/\//i.test(rawCommand)) {
+                const child = spawn('open', [rawCommand], { detached: true, stdio: 'ignore', shell: false });
+                child.unref();
+                return;
+            }
+
+            const { command, args } = parseLaunchCommand(rawCommand);
+            if (command === 'open' && args.length) {
+                const child = spawn('open', args, { detached: true, stdio: 'ignore', shell: false });
+                child.unref();
+                return;
+            }
+
+            const child = spawn(command || rawCommand, args.length ? args : [], { detached: true, stdio: 'ignore', shell: false });
+            child.unref();
+            return;
+        }
+
+        const { command, args } = parseLaunchCommand(rawCommand);
+        const child = spawn(command || rawCommand, args, { detached: true, stdio: 'ignore', shell: false });
         child.unref();
     } catch (error) {
         console.log(chalk.red(`Error: ${error.message}`));
@@ -93,4 +220,13 @@ async function handleAppLaunch(inputKey) {
     }
 }
 
-module.exports = { launchApp, scanDirectory, sortApps, findApp, handleAppLaunch };
+module.exports = {
+    launchApp,
+    scanDirectory,
+    sortApps,
+    findApp,
+    handleAppLaunch,
+    splitCommandLine,
+    quoteCommandArg,
+    parseLaunchCommand,
+};

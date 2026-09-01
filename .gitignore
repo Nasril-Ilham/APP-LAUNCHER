@@ -22,3 +22,4 @@ data/apps.json
 data/config.json
 data/groups.json
 data/*.local.json
+tests/command-parse.test.cjs
