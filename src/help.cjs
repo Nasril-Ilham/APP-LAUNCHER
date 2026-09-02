@@ -12,7 +12,6 @@ const banner = `
 
 function showBanner() {
     console.log(banner);
-    console.log(chalk.bold.white(` Type 'run help' for usage instructions.\n`));
 }
 
 function showHelp() {

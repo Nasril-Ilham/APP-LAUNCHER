@@ -18,12 +18,12 @@ const T = getT();
 // --- COMMANDS ---
 
 
-// Ganti perintah add yang lama dengan ini
 program.command('add <name> [args...]')
   .allowUnknownOption(true) // Abaikan error --profile-directory
   .action((name) => {
     const db = loadDb();
-    const rawPath = process.argv.slice(4).map(arg => quoteCommandArg(arg)).join(' ');
+    // Ambil teks mentah apa adanya tanpa diubah oleh quoteCommandArg
+    const rawPath = process.argv.slice(4).join(' ');
     db[name.toLowerCase()] = { name, path: rawPath, shortcut: null };
     saveDb(db);
     console.log(chalk.green(T.add_success(name)));
@@ -195,6 +195,7 @@ program.command('lang <language>').action((l) => {
     // Jika tidak ada argumen sama sekali (cuma ketik 'run')
     if (args.length === 0) {
         showBanner();
+        showHelp();
         process.exit(0);
     }
 

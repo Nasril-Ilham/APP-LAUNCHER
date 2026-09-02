@@ -6,25 +6,31 @@ const prompts = require('prompts');
 const { loadDb, saveDb, loadGroups, saveGroups } = require('./db.cjs');
 const { getT } = require('./lang/index.cjs');
 
-function splitCommandLine(commandLine) {
+// ==========================================
+// FUNGSI BANTU PARSER (Untuk perintah add)
+// ==========================================
+
+function splitCommandLine(input) {
+    const value = String(input || '');
     const tokens = [];
     let current = '';
-    let inQuotes = false;
+    let quote = null;
 
-    for (let i = 0; i < commandLine.length; i++) {
-        const char = commandLine[i];
+    for (let i = 0; i < value.length; i++) {
+        const ch = value[i];
 
-        if (char === '"') {
-            if (inQuotes && commandLine[i + 1] === '"') {
-                current += '"';
-                i += 1;
+        if (ch === '"' || ch === "'") {
+            if (quote === ch) {
+                quote = null;
+            } else if (!quote) {
+                quote = ch;
             } else {
-                inQuotes = !inQuotes;
+                current += ch;
             }
             continue;
         }
 
-        if (/\s/.test(char) && !inQuotes) {
+        if ((ch === ' ' || ch === '\t') && !quote) {
             if (current) {
                 tokens.push(current);
                 current = '';
@@ -32,43 +38,70 @@ function splitCommandLine(commandLine) {
             continue;
         }
 
-        current += char;
+        current += ch;
     }
 
     if (current) tokens.push(current);
-    return tokens;
+    return tokens.map(token => token.replace(/^"(.*)"$/, '$1').replace(/^'(.*)'$/, '$1'));
 }
 
-function quoteCommandArg(arg) {
-    if (arg === undefined || arg === null) return '""';
-    const value = String(arg);
-    if (value === '') return '""';
-    if (/^[^\s"]+$/.test(value)) return value;
-    return `"${value.replace(/"/g, '\\"')}"`;
-}
-
-function parseLaunchCommand(commandLine) {
-    const trimmed = String(commandLine || '').trim();
-    if (!trimmed) return { command: '', args: [] };
-
-    if (/^[a-zA-Z]:[\\/]/.test(trimmed) || /^\\\\/.test(trimmed)) {
-        return { command: trimmed, args: [] };
-    }
-
-    const tokens = splitCommandLine(trimmed);
-    if (!tokens.length) return { command: '', args: [] };
-
+function parseLaunchCommand(input) {
+    const tokens = splitCommandLine(input);
+    if (tokens.length === 0) return { command: '', args: [] };
     return { command: tokens[0], args: tokens.slice(1) };
 }
 
-function isUrl(value) {
-    return /^https?:\/\//i.test(String(value || '').trim());
+function isWindowsPathLaunch(input) {
+    const value = String(input || '').trim();
+    if (!value) return false;
+
+    const directMatch = /^(?:[a-zA-Z]:[\\/]|\\\\|\.{1,2}[\\/]).*\.(lnk|exe|bat|cmd|msi)$/i.test(value);
+    if (directMatch) return true;
+
+    const quotedMatch = /^"(.+)"$|^'(.+)'$/.exec(value);
+    if (quotedMatch) {
+        const candidate = (quotedMatch[1] || quotedMatch[2] || '').trim();
+        return /^(?:[a-zA-Z]:[\\/]|\\\\|\.{1,2}[\\/]).*\.(lnk|exe|bat|cmd|msi)$/i.test(candidate);
+    }
+
+    const tokens = splitCommandLine(value);
+    if (tokens.length !== 1) return false;
+
+    const pathToken = tokens[0].replace(/^"|"$/g, '');
+    return /^(?:[a-zA-Z]:[\\/]|\\\\|\.{1,2}[\\/])/.test(pathToken)
+        && /\.(lnk|exe|bat|cmd|msi)$/i.test(pathToken);
 }
 
-function isBatchFile(value) {
-    return /\.(bat|cmd)$/i.test(String(value || '').trim());
+function isUrlLike(input) {
+    const value = String(input || '').trim();
+    return /^(https?:|mailto:|ftp:|file:|www\.)/i.test(value) || value.includes('://');
 }
 
+// Fungsi ini akan memulihkan tanda kutip yang dibuang oleh terminal saat mengetik "run add"
+function quoteCommandArg(arg) {
+    if (arg === undefined || arg === null) return '';
+    const value = String(arg);
+    if (value === '') return '';
+
+    // Tangani flags seperti --profile-directory=Profile 5
+    if (value.startsWith('--') && value.includes('=')) {
+        const eqIndex = value.indexOf('=');
+        const flag = value.substring(0, eqIndex);
+        const val = value.substring(eqIndex + 1);
+        if (val.includes(' ')) return `"${flag}=${val}"`;
+        return value;
+    }
+
+    // Tangani path yang ada spasi seperti C:\Program Files\...
+    if (value.includes(' ')) return `"${value}"`;
+
+    return value;
+}
+
+
+// ==========================================
+// FUNGSI NATIVE UNTUK MEMBUKA APLIKASI
+// ==========================================
 function launchApp(appPath) {
     const rawCommand = typeof appPath === 'string' ? appPath.trim() : '';
     if (!rawCommand) {
@@ -78,104 +111,132 @@ function launchApp(appPath) {
 
     try {
         if (process.platform === 'win32') {
-            const { command, args } = parseLaunchCommand(rawCommand);
-            if (!command) return;
+            const normalized = rawCommand.replace(/^"|"$/g, '');
+            const isLnk = /\.lnk$/i.test(normalized);
+            const isUrl = isUrlLike(normalized);
 
-            if (isUrl(command)) {
-                const child = spawn('cmd.exe', ['/c', 'start', '""', command, ...args], {
-                    detached: true,
-                    stdio: 'ignore',
-                    shell: false,
-                    windowsHide: true,
-                });
-                child.unref();
-                return;
+            switch (true) {
+                case isLnk: {
+                    const cmdString = `start "" "${normalized}"`;
+                    const child = spawn('cmd.exe', ['/c', cmdString], {
+                        detached: true,
+                        stdio: 'ignore',
+                        windowsHide: true,
+                        shell: true
+                    });
+                    child.on('error', (err) => {
+                        console.log(chalk.red(`Gagal membuka aplikasi: ${err.message}`));
+                    });
+                    child.unref();
+                    return;
+                }
+                case isUrl: {
+                    const cmdString = `start "" "${normalized}"`;
+                    const child = spawn('cmd.exe', ['/c', cmdString], {
+                        detached: true,
+                        stdio: 'ignore',
+                        windowsHide: true,
+                        shell: true
+                    });
+                    child.on('error', (err) => {
+                        console.log(chalk.red(`Gagal membuka aplikasi: ${err.message}`));
+                    });
+                    child.unref();
+                    return;
+                }
+                default: {
+                    const parsed = parseLaunchCommand(rawCommand);
+                    const target = parsed.command;
+                    if (!target) {
+                        console.log(chalk.yellow('No app path provided.'));
+                        return;
+                    }
+
+                    const child = spawn(target, parsed.args, {
+                        detached: true,
+                        stdio: 'ignore',
+                        windowsHide: true,
+                        shell: false
+                    });
+
+                    child.on('error', (err) => {
+                        console.log(chalk.red(`Gagal membuka aplikasi: ${err.message}`));
+                    });
+                    child.unref();
+                    return;
+                }
             }
-
-            if (isBatchFile(command)) {
-                const child = spawn('cmd.exe', ['/c', command, ...args], {
-                    detached: true,
-                    stdio: 'ignore',
-                    shell: false,
-                    windowsHide: true,
-                });
-                child.unref();
-                return;
-            }
-
-            if (/\.lnk$/i.test(command)) {
-                const child = spawn('cmd.exe', ['/c', 'start', '""', command, ...args], {
-                    detached: true,
-                    stdio: 'ignore',
-                    shell: false,
-                    windowsHide: true,
-                });
-                child.unref();
-                return;
-            }
-
-            const child = spawn(command, args, {
-                detached: true,
-                stdio: 'ignore',
-                shell: false,
-                windowsHide: true,
-            });
-            child.unref();
-            return;
         }
 
+        // Untuk Mac dan Linux
         if (process.platform === 'darwin') {
-            if (/^https?:\/\//i.test(rawCommand)) {
-                const child = spawn('open', [rawCommand], { detached: true, stdio: 'ignore', shell: false });
-                child.unref();
-                return;
-            }
-
-            const { command, args } = parseLaunchCommand(rawCommand);
-            if (command === 'open' && args.length) {
-                const child = spawn('open', args, { detached: true, stdio: 'ignore', shell: false });
-                child.unref();
-                return;
-            }
-
-            const child = spawn(command || rawCommand, args.length ? args : [], { detached: true, stdio: 'ignore', shell: false });
+            const child = spawn('open', [rawCommand], { detached: true, stdio: 'ignore' });
+            child.on('error', (err) => console.log(chalk.red(`Error: ${err.message}`)));
             child.unref();
             return;
         }
 
-        const { command, args } = parseLaunchCommand(rawCommand);
-        const child = spawn(command || rawCommand, args, { detached: true, stdio: 'ignore', shell: false });
+        // Linux
+        const child = spawn('xdg-open', [rawCommand], { detached: true, stdio: 'ignore' });
+        child.on('error', (err) => console.log(chalk.red(`Error: ${err.message}`)));
         child.unref();
     } catch (error) {
         console.log(chalk.red(`Error: ${error.message}`));
     }
 }
 
+
+// ==========================================
+// FUNGSI BANTU SCAN FOLDER (LINTAS OS)
+// ==========================================
 function scanDirectory(dir, fileList = []) {
     if (!fs.existsSync(dir)) return fileList;
     const files = fs.readdirSync(dir);
-    const ignoreKeywords = ['uninstall', 'unins', 'readme', 'help', 'documentation', 'setup'];
+    
+    const ignoreKeywords = [
+        'uninstall', 'unins', 'readme', 'help', 'documentation', 'setup', 'update', 'updater',
+        'node', 'npm', 'npx', 'python', 'pip', 'git', 'cmd', 'powershell', 'pwsh',
+        'mysql', 'postgres', 'psql', 'redis', 'mongo', 'nginx', 'apache', 'httpd',
+        'server', 'service', 'daemon', 'cli', 'console', 'terminal', 'runtime',
+        'vc_redist', 'redist', 'installer', 'crashpad', 'handler'
+    ];
+    
+    let allowedExts = [];
+    if (process.platform === 'win32') {
+        allowedExts = ['.lnk', '.exe'];
+    } else if (process.platform === 'darwin') {
+        allowedExts = ['.app'];
+    } else {
+        allowedExts = ['.desktop'];
+    }
+
     for (const file of files) {
         const filePath = path.join(dir, file);
         const isDir = fs.statSync(filePath).isDirectory();
-        if (isDir) {
-            if (process.platform === 'darwin' && file.endsWith('.app')) {
+        const lowerCaseFile = file.toLowerCase();
+        const fileExt = path.extname(lowerCaseFile);
+        const isJunk = ignoreKeywords.some(keyword => lowerCaseFile.includes(keyword));
+
+        if (process.platform === 'darwin' && isDir && fileExt === '.app') {
+            if (!isJunk) {
                 fileList.push({ name: file.replace('.app', '').toLowerCase(), path: filePath });
-            } else if (!file.endsWith('.app')) {
-                scanDirectory(filePath, fileList);
             }
-        } else {
-            if (process.platform === 'linux' && file.endsWith('.desktop')) {
-                fileList.push({ name: file.replace('.desktop', '').toLowerCase(), path: filePath });
-            } else if (process.platform === 'win32' && file.endsWith('.lnk')) {
-                const isJunk = ignoreKeywords.some(kw => file.toLowerCase().includes(kw));
-                if (!isJunk) fileList.push({ name: file.replace('.lnk', '').toLowerCase(), path: filePath });
+        } else if (!isDir && allowedExts.includes(fileExt)) {
+            if (!isJunk) {
+                const appName = file.replace(fileExt, '').toLowerCase();
+                fileList.push({ name: appName, path: filePath });
             }
+        } else if (isDir && fileExt !== '.app') {
+            scanDirectory(filePath, fileList);
         }
     }
     return fileList;
 }
 
+
+// ==========================================
+// FUNGSI SORTIR & CARI APLIKASI
+// ==========================================
 function sortApps(db) {
     return Object.keys(db).sort((a, b) => {
         if (db[a].shortcut && !db[b].shortcut) return -1;
@@ -188,6 +249,10 @@ function findApp(db, inputKey) {
     return db[inputKey] || Object.values(db).find(a => a.shortcut === inputKey);
 }
 
+
+// ==========================================
+// LOGIKA PANGGIL LANGSUNG (ONE-SHOT & FUZZY)
+// ==========================================
 async function handleAppLaunch(inputKey) {
     const T = getT();
     const db = loadDb();
@@ -224,13 +289,19 @@ async function handleAppLaunch(inputKey) {
     }
 }
 
+
+// ==========================================
+// EXPORT MODULES
+// ==========================================
 module.exports = {
+    splitCommandLine,
+    parseLaunchCommand,
+    isWindowsPathLaunch,
+    isUrlLike,
     launchApp,
     scanDirectory,
     sortApps,
     findApp,
     handleAppLaunch,
-    splitCommandLine,
-    quoteCommandArg,
-    parseLaunchCommand,
+    quoteCommandArg
 };
