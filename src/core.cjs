@@ -191,7 +191,12 @@ function launchApp(appPath) {
 // ==========================================
 function scanDirectory(dir, fileList = []) {
     if (!fs.existsSync(dir)) return fileList;
-    const files = fs.readdirSync(dir);
+    let files;
+    try {
+        files = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+        return fileList;
+    }
     
     const ignoreKeywords = [
         'uninstall', 'unins', 'readme', 'help', 'documentation', 'setup', 'update', 'updater',
@@ -210,9 +215,10 @@ function scanDirectory(dir, fileList = []) {
         allowedExts = ['.desktop'];
     }
 
-    for (const file of files) {
+    for (const entry of files) {
+        const file = entry.name;
         const filePath = path.join(dir, file);
-        const isDir = fs.statSync(filePath).isDirectory();
+        const isDir = entry.isDirectory();
         const lowerCaseFile = file.toLowerCase();
         const fileExt = path.extname(lowerCaseFile);
         const isJunk = ignoreKeywords.some(keyword => lowerCaseFile.includes(keyword));
@@ -249,6 +255,15 @@ function findApp(db, inputKey) {
     return db[inputKey] || Object.values(db).find(a => a.shortcut === inputKey);
 }
 
+function findAppKey(db, inputKey) {
+    if (db[inputKey]) return inputKey;
+    return Object.keys(db).find(key => db[key].shortcut === inputKey);
+}
+
+function findGroupKey(groups, inputKey) {
+    return Object.keys(groups).find(key => key.toLowerCase() === String(inputKey || '').toLowerCase());
+}
+
 
 // ==========================================
 // LOGIKA PANGGIL LANGSUNG (ONE-SHOT & FUZZY)
@@ -258,10 +273,11 @@ async function handleAppLaunch(inputKey) {
     const db = loadDb();
     const groups = loadGroups();
     
-    if (groups[inputKey]) {
-        if (groups[inputKey].length === 0) return console.log(chalk.yellow(T.group_empty(inputKey)));
-        console.log(chalk.cyan(T.opening_group(inputKey)));
-        groups[inputKey].forEach(appKey => {
+    const groupKey = findGroupKey(groups, inputKey);
+    if (groupKey) {
+        if (groups[groupKey].length === 0) return console.log(chalk.yellow(T.group_empty(groupKey)));
+        console.log(chalk.cyan(T.opening_group(groupKey)));
+        groups[groupKey].forEach(appKey => {
             const app = db[appKey];
             if (app) { console.log(chalk.green(T.opening(app.name))); launchApp(app.path); }
             else { console.log(chalk.red(T.group_app_skip(appKey))); }
@@ -302,6 +318,8 @@ module.exports = {
     scanDirectory,
     sortApps,
     findApp,
+    findAppKey,
+    findGroupKey,
     handleAppLaunch,
     quoteCommandArg
 };

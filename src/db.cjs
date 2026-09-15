@@ -15,10 +15,18 @@ function ensureFileExists(filePath) {
     }
 }
 
+function parseJson(data, filePath) {
+    try {
+        return JSON.parse(data);
+    } catch (error) {
+        throw new Error(`Invalid JSON in ${path.basename(filePath)}: ${error.message}`);
+    }
+}
+
 function loadDb() {
     ensureFileExists(dbPath);
     const data = fs.readFileSync(dbPath, 'utf-8');
-    return JSON.parse(data);
+    return parseJson(data, dbPath);
 }
 
 function saveDb(data) {
@@ -29,7 +37,7 @@ function saveDb(data) {
 function loadGroups() {
     ensureFileExists(groupsPath);
     const data = fs.readFileSync(groupsPath, 'utf-8');
-    return JSON.parse(data);
+    return parseJson(data, groupsPath);
 }
 
 function saveGroups(data) {
@@ -40,7 +48,7 @@ function saveGroups(data) {
 function loadConfig() {
     ensureFileExists(configPath);
     const data = fs.readFileSync(configPath, 'utf-8');
-    let config = JSON.parse(data);
+    let config = parseJson(data, configPath);
     if (!config.lang) config.lang = 'id'; // Default Indonesia
     return config;
 }

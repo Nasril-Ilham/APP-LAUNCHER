@@ -6,13 +6,18 @@ const chalk = require('chalk');
 const path = require('path');
 const { loadDb, saveDb, loadGroups, saveGroups, loadConfig, saveConfig } = require('../src/db.cjs');
 const { loadTranslations, getT } = require('../src/lang/index.cjs');
-const { launchApp, scanDirectory, sortApps, findApp, handleAppLaunch, quoteCommandArg } = require('../src/core.cjs');
-const { showBanner, showHelp } = require('../src/help.cjs');
+const { launchApp, scanDirectory, sortApps, findApp, findAppKey, findGroupKey, handleAppLaunch, quoteCommandArg } = require('../src/core.cjs');
+const { showAbout, showBanner, showHelp } = require('../src/help.cjs');
 
 const program = new Command();
 program.name('run').description('CLI App Launcher').version('1.0.0');
 
-loadTranslations(); // Muat bahasa saat script dimulai
+try {
+    loadTranslations(); // Muat bahasa saat script dimulai
+} catch (error) {
+    console.error(chalk.red(`Error: ${error.message}`));
+    process.exit(1);
+}
 const T = getT();
 
 // --- COMMANDS ---
@@ -22,8 +27,7 @@ program.command('add <name> [args...]')
   .allowUnknownOption(true) // Abaikan error --profile-directory
   .action((name) => {
     const db = loadDb();
-    // Ambil teks mentah apa adanya tanpa diubah oleh quoteCommandArg
-    const rawPath = process.argv.slice(4).join(' ');
+        const rawPath = process.argv.slice(4).map(quoteCommandArg).join(' ');
     db[name.toLowerCase()] = { name, path: rawPath, shortcut: null };
     saveDb(db);
     console.log(chalk.green(T.add_success(name)));
@@ -47,8 +51,8 @@ program.command('edit [name...]').action(async (nameArr) => {
 
     if (nameArr && nameArr.length > 0) {
         const name = nameArr.join(' ');
-        key = name.toLowerCase();
-        app = findApp(db, key);
+        key = findAppKey(db, name.toLowerCase());
+        app = key ? db[key] : undefined;
         if (!app) return console.log(chalk.red(T.app_not_found(name)));
     } else {
         if (apps.length === 0) return console.log(chalk.yellow(T.no_apps_list));
@@ -133,21 +137,23 @@ program.command('scan').action(() => {
 
 program.command('addgroup <group_name> <apps...>').action((gn, apps) => {
     const groups = loadGroups();
-    if (groups[gn]) return console.log(chalk.red(T.grp_exists(gn)));
-    groups[gn] = [];
+    const groupKey = gn.toLowerCase();
+    if (findGroupKey(groups, groupKey)) return console.log(chalk.red(T.grp_exists(gn)));
+    groups[groupKey] = [];
     const db = loadDb();
     let count = 0;
-    apps.forEach(an => { const app = findApp(db, an.toLowerCase()); if (!app) return console.log(chalk.red(T.app_not_in_db(an))); if (!groups[gn].includes(an.toLowerCase())) { groups[gn].push(an.toLowerCase()); count++; } });
+    apps.forEach(an => { const appKey = findAppKey(db, an.toLowerCase()); if (!appKey) return console.log(chalk.red(T.app_not_in_db(an))); if (!groups[groupKey].includes(appKey)) { groups[groupKey].push(appKey); count++; } });
     saveGroups(groups);
     console.log(chalk.green(T.grp_create_success(gn, count)));
 });
 
 program.command('addto <group_name> <apps...>').action((gn, apps) => {
     const groups = loadGroups();
-    if (!groups[gn]) return console.log(chalk.red(T.grp_not_found(gn)));
+    const groupKey = findGroupKey(groups, gn);
+    if (!groupKey) return console.log(chalk.red(T.grp_not_found(gn)));
     const db = loadDb();
     let count = 0;
-    apps.forEach(an => { const app = findApp(db, an.toLowerCase()); if (!app) return console.log(chalk.red(T.app_not_in_db(an))); if (!groups[gn].includes(an.toLowerCase())) { groups[gn].push(an.toLowerCase()); count++; } else console.log(chalk.yellow(T.app_already_in_grp(an, gn))); });
+    apps.forEach(an => { const appKey = findAppKey(db, an.toLowerCase()); if (!appKey) return console.log(chalk.red(T.app_not_in_db(an))); if (!groups[groupKey].includes(appKey)) { groups[groupKey].push(appKey); count++; } else console.log(chalk.yellow(T.app_already_in_grp(an, gn))); });
     saveGroups(groups);
     console.log(chalk.green(T.grp_add_success(count, gn)));
 });
@@ -156,9 +162,10 @@ program.command('addto <group_name> <apps...>').action((gn, apps) => {
 program.command('delfrom <group_name> [app_name...]').action((gn, anArr) => {
     const an = anArr.join(' ');
     const groups = loadGroups();
-    if (!groups[gn]) return console.log(chalk.red(T.grp_not_found(gn)));
-    if (!groups[gn].includes(an.toLowerCase())) return console.log(chalk.red(T.app_not_in_grp(an, gn)));
-    groups[gn] = groups[gn].filter(a => a !== an.toLowerCase());
+    const groupKey = findGroupKey(groups, gn);
+    if (!groupKey) return console.log(chalk.red(T.grp_not_found(gn)));
+    if (!groups[groupKey].includes(an.toLowerCase())) return console.log(chalk.red(T.app_not_in_grp(an, gn)));
+    groups[groupKey] = groups[groupKey].filter(a => a !== an.toLowerCase());
     saveGroups(groups);
     console.log(chalk.green(T.grp_rm_success(an, gn)));
 });
@@ -175,8 +182,9 @@ program.command('groups').action(() => {
 
 program.command('delgroup <group_name>').action((gn) => {
     const groups = loadGroups();
-    if (!groups[gn]) return console.log(chalk.red(T.grp_not_found(gn)));
-    delete groups[gn]; saveGroups(groups);
+    const groupKey = findGroupKey(groups, gn);
+    if (!groupKey) return console.log(chalk.red(T.grp_not_found(gn)));
+    delete groups[groupKey]; saveGroups(groups);
     console.log(chalk.red(T.grp_delete_success(gn)));
 });
 
@@ -187,10 +195,12 @@ program.command('lang <language>').action((l) => {
     console.log(chalk.green(l === 'en' ? T.lang_success_en : T.lang_success_id));
 });
 
+program.command('about').description('Show project credits').action(showAbout);
+
 // --- MAIN EXECUTION ---
 (async () => {
     const args = process.argv.slice(2);
-    const known = ['add', 'addgroup', 'addto', 'edit', 'list', 'groups', 'delfrom', 'delgroup', 'info', 'delete', 'clear', 'scan', 'lang', 'help', '-h', '--help', '-V', '--version'];
+    const known = ['add', 'addgroup', 'addto', 'edit', 'list', 'groups', 'delfrom', 'delgroup', 'info', 'delete', 'clear', 'scan', 'lang', 'about', 'help', '-h', '--help', '-V', '--version'];
     
     // Jika tidak ada argumen sama sekali (cuma ketik 'run')
     if (args.length === 0) {
@@ -210,6 +220,9 @@ program.command('lang <language>').action((l) => {
         await handleAppLaunch(args.join(' ').toLowerCase());
         process.exit(0);
     } else {
-        program.parse(process.argv);
+        await program.parseAsync(process.argv);
     }
-})();
+})().catch((error) => {
+    console.error(chalk.red(`Error: ${error.message}`));
+    process.exitCode = 1;
+});

@@ -2,13 +2,21 @@
   "name": "launcher",
   "version": "1.0.0",
   "description": "CLI App Launcher for your laptop",
+  "author": "Nasril Ilham",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Nasril-Ilham/APP-LAUNCHER.git"
+  },
   "type": "commonjs",
   "main": "bin/index.cjs",
   "bin": {
     "run": "./bin/index.cjs",
     "open": "./bin/index.cjs",
     "zap": "./bin/index.cjs"
-    
+  },
+  "scripts": {
+    "test": "node tests/command-parse.test.cjs"
   },
   "dependencies": {
     "chalk": "^4.1.2",

@@ -1,5 +1,7 @@
 # APP LAUNCHER
 
+Created by **Nasril Ilham**. Repository: [github.com/Nasril-Ilham/APP-LAUNCHER](https://github.com/Nasril-Ilham/APP-LAUNCHER)
+
 > Cross-platform CLI launcher for opening applications, websites, and grouped workspaces directly from the terminal.
 
 [![Node.js](https://img.shields.io/badge/Node.js-CommonJS-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
@@ -110,6 +112,12 @@ Display help:
 
 ```bash
 run help
+```
+
+Display project credit:
+
+```bash
+run about
 ```
 
 Change language:

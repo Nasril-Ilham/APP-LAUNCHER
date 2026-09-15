@@ -14,6 +14,13 @@ function showBanner() {
     console.log(banner);
 }
 
+function showAbout() {
+    console.log(`\n ${chalk.bold.cyan('APP LAUNCHER')}`);
+    console.log(` ${chalk.gray('Created by')} ${chalk.bold.white('Nasril Ilham')}`);
+    console.log(` ${chalk.gray('Repository:')} ${chalk.white('https://github.com/Nasril-Ilham/APP-LAUNCHER')}`);
+    console.log(` ${chalk.gray('License:')} ${chalk.white('MIT')}\n`);
+}
+
 function showHelp() {
     const config = loadConfig();
     const lang = config.lang || 'id';
@@ -40,6 +47,8 @@ function showHelp() {
         console.log(`  ${chalk.magenta.bold('[Settings]')}`)
         console.log(`  ${chalk.bold.white('run lang id')}                   ${chalk.gray('Change language to Indonesian')}`)
         console.log(`  ${chalk.bold.white('run lang en')}                   ${chalk.gray('Change language to English')}\n`)
+        console.log(`  ${chalk.bold.white('run about')}                   ${chalk.gray('Show project credits')}\n`)
+        showAbout();
     } else {
         console.log(` ${chalk.bold.green('Cara pakai:')}\n`);
         console.log(`  ${chalk.magenta.bold('[Aplikasi]')}`)
@@ -61,8 +70,10 @@ function showHelp() {
         console.log(`  ${chalk.bold.white('run atau open <sebagian_nama>')}      ${chalk.gray('Cari aplikasi mirip')}\n`)
         console.log(`  ${chalk.magenta.bold('[Pengaturan]')}`)
         console.log(`  ${chalk.bold.white('run lang id')}                   ${chalk.gray('Ganti bahasa ke Indonesia')}`)
-        console.log(`  ${chalk.bold.white('run lang en')}                   ${chalk.gray('Ganti bahasa ke Inggris')}\n`)
+        console.log(`  ${chalk.bold.white('run lang en')}                   ${chalk.gray('Ganti bahasa ke Inggris')}`)
+        console.log(`  ${chalk.bold.white('run about')}                  ${chalk.gray('Lihat credit proyek')}\n`)
+        showAbout();
     }
 }
 
-module.exports = { showBanner, showHelp };
+    module.exports = { showAbout, showBanner, showHelp };
