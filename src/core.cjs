@@ -1,4 +1,4 @@
-const { spawn } = require('child_process');
+const { exec } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const chalk = require('chalk');
@@ -111,74 +111,28 @@ function launchApp(appPath) {
 
     try {
         if (process.platform === 'win32') {
-            const normalized = rawCommand.replace(/^"|"$/g, '');
-            const isLnk = /\.lnk$/i.test(normalized);
-            const isUrl = isUrlLike(normalized);
-
-            switch (true) {
-                case isLnk: {
-                    const cmdString = `start "" "${normalized}"`;
-                    const child = spawn('cmd.exe', ['/c', cmdString], {
-                        detached: true,
-                        stdio: 'ignore',
-                        windowsHide: true,
-                        shell: true
-                    });
-                    child.on('error', (err) => {
-                        console.log(chalk.red(`Gagal membuka aplikasi: ${err.message}`));
-                    });
-                    child.unref();
-                    return;
-                }
-                case isUrl: {
-                    const cmdString = `start "" "${normalized}"`;
-                    const child = spawn('cmd.exe', ['/c', cmdString], {
-                        detached: true,
-                        stdio: 'ignore',
-                        windowsHide: true,
-                        shell: true
-                    });
-                    child.on('error', (err) => {
-                        console.log(chalk.red(`Gagal membuka aplikasi: ${err.message}`));
-                    });
-                    child.unref();
-                    return;
-                }
-                default: {
-                    const parsed = parseLaunchCommand(rawCommand);
-                    const target = parsed.command;
-                    if (!target) {
-                        console.log(chalk.yellow('No app path provided.'));
-                        return;
-                    }
-
-                    const child = spawn(target, parsed.args, {
-                        detached: true,
-                        stdio: 'ignore',
-                        windowsHide: true,
-                        shell: false
-                    });
-
-                    child.on('error', (err) => {
-                        console.log(chalk.red(`Gagal membuka aplikasi: ${err.message}`));
-                    });
-                    child.unref();
-                    return;
-                }
-            }
-        }
-
-        // Untuk Mac dan Linux
-        if (process.platform === 'darwin') {
-            const child = spawn('open', [rawCommand], { detached: true, stdio: 'ignore' });
-            child.on('error', (err) => console.log(chalk.red(`Error: ${err.message}`)));
+            const startsWithQuote = rawCommand.startsWith('"') || rawCommand.startsWith("'");
+            const command = startsWithQuote || isUrlLike(rawCommand)
+                ? rawCommand
+                : `"${rawCommand}"`;
+            const child = exec(`start "" ${command}`, {
+                detached: true,
+                windowsHide: true
+            }, (error) => {
+                if (error) console.log(chalk.red(`Gagal membuka aplikasi: ${error.message}`));
+            });
             child.unref();
             return;
         }
 
-        // Linux
-        const child = spawn('xdg-open', [rawCommand], { detached: true, stdio: 'ignore' });
-        child.on('error', (err) => console.log(chalk.red(`Error: ${err.message}`)));
+        // Untuk Mac dan Linux
+        const launcher = process.platform === 'darwin' ? 'open' : 'xdg-open';
+        const escapedCommand = rawCommand.replace(/"/g, '\\"');
+        const child = exec(`${launcher} "${escapedCommand}"`, {
+            detached: true
+        }, (error) => {
+            if (error) console.log(chalk.red(`Error: ${error.message}`));
+        });
         child.unref();
     } catch (error) {
         console.log(chalk.red(`Error: ${error.message}`));

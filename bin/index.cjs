@@ -218,7 +218,6 @@ program.command('about').description('Show project credits').action(showAbout);
     // Jika bukan perintah yang dikenal, coba cari aplikasi/grup
     if (!known.includes(args[0])) {
         await handleAppLaunch(args.join(' ').toLowerCase());
-        process.exit(0);
     } else {
         await program.parseAsync(process.argv);
     }
