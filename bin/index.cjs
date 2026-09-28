@@ -112,22 +112,48 @@ program.command('delete').action(async () => {
 
 program.command('clear').action(async () => {
     const res = await prompts({ type: 'confirm', name: 'v', message: T.clear_prompt, initial: false });
-    if (res.v) { saveDb({}); console.log(chalk.green(T.clear_success)); } else console.log(chalk.yellow(T.cancelled));
+    if (res.v) { 
+        saveDb({}); 
+        saveGroups({}); // Tambahan: Hapus grup juga
+        console.log(chalk.green(T.clear_success)); 
+    } else console.log(chalk.yellow(T.cancelled));
 });
 
-program.command('scan').action(() => {
+program.command('scan [customPath...]').action((customPath) => {
     let paths = [];
-    if (process.platform === 'win32') {
-        paths.push(path.join(process.env.ALLUSERSPROFILE || 'C:\\ProgramData', 'Microsoft', 'Windows', 'Start Menu', 'Programs'));
-        paths.push(path.join(process.env.APPDATA, 'Microsoft', 'Windows', 'Start Menu', 'Programs'));
-    } else if (process.platform === 'darwin') {
-        paths.push('/Applications'); paths.push(path.join(process.env.HOME, 'Applications'));
+    
+    if (customPath && customPath.length > 0) {
+        paths.push(path.resolve(customPath.join(' ')));
+        console.log(chalk.cyan(`Memindai folder kustom: ${paths[0]}`));
     } else {
-        paths.push('/usr/share/applications'); paths.push(path.join(process.env.HOME, '.local/share/applications'));
+        if (process.platform === 'win32') {
+            // Lokasi Start Menu (Bawaan)
+            paths.push(path.join(process.env.ALLUSERSPROFILE || 'C:\\ProgramData', 'Microsoft', 'Windows', 'Start Menu', 'Programs'));
+            paths.push(path.join(process.env.APPDATA, 'Microsoft', 'Windows', 'Start Menu', 'Programs'));
+            
+            // Lokasi AppData\Local\Programs (Tempat Canva, Figma, dll bersembunyi)
+            if (process.env.LOCALAPPDATA) {
+                paths.push(path.join(process.env.LOCALAPPDATA, 'Programs'));
+            }
+            // Kita HAPUS C:\Program Files dan C:\Program Files (x86) di sini
+        } else if (process.platform === 'darwin') {
+            paths.push('/Applications'); paths.push(path.join(process.env.HOME, 'Applications'));
+        } else {
+            paths.push('/usr/share/applications'); paths.push(path.join(process.env.HOME, '.local/share/applications'));
+        }
     }
+
     let scanned = [];
     paths.forEach(p => scanned = scanDirectory(p, scanned));
     if (scanned.length === 0) return console.log(chalk.red(T.scan_none));
+    
+    // Logika prioritas agar .lnk didahulukan
+    scanned.sort((a, b) => {
+        const aIsLnk = a.path.toLowerCase().endsWith('.lnk') ? 0 : 1;
+        const bIsLnk = b.path.toLowerCase().endsWith('.lnk') ? 0 : 1;
+        return aIsLnk - bIsLnk;
+    });
+
     const db = loadDb();
     let count = 0;
     scanned.forEach(a => { if (!db[a.name]) { db[a.name] = { name: a.name, path: a.path, shortcut: null }; count++; } });
