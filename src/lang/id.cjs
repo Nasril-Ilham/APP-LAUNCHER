@@ -46,5 +46,10 @@ module.exports = {
     fuzzy_found: (c) => `Ditemukan ${c} aplikasi yang cocok:`,
     not_found_generic: (n) => `Aplikasi, shortcut, atau grup "${n}" tidak ditemukan.`,
     type_help: "Ketik 'run help' untuk melihat cara pakai.",
-    edit_prompt: "Ketik nama aplikasi yang ingin diubah"
+    edit_prompt: "Ketik nama aplikasi yang ingin diubah",
+    update_checking: "Mengecek pembaruan dari GitHub...",
+    update_pull: "Menarik kode terbaru...",
+    update_install: "Memperbarui dependencies...",
+    update_success: "Zap CLI berhasil diperbarui ke versi terbaru!",
+    update_fail: "Gagal memperbarui. Pastikan tidak ada file yang sedang diedit dan Anda terhubung ke internet."
 };

@@ -4,6 +4,7 @@ const { Command } = require('commander');
 const prompts = require('prompts');
 const chalk = require('chalk');
 const path = require('path');
+const { execSync } = require('child_process');
 const { loadDb, saveDb, loadGroups, saveGroups, loadConfig, saveConfig } = require('../src/db.cjs');
 const { loadTranslations, getT } = require('../src/lang/index.cjs');
 const { launchApp, scanDirectory, sortApps, findApp, findAppKey, findGroupKey, handleAppLaunch, quoteCommandArg } = require('../src/core.cjs');
@@ -221,12 +222,36 @@ program.command('lang <language>').action((l) => {
     console.log(chalk.green(l === 'en' ? T.lang_success_en : T.lang_success_id));
 });
 
+// Perintah Update Otomatis
+program.command('update')
+    .description('Memeriksa dan mengunduh pembaruan terbaru dari GitHub')
+    .action(() => {
+        // Naik satu folder dari bin/ untuk mendapatkan root project Zap CLI.
+        const projectRoot = path.resolve(__dirname, '..');
+
+        console.log(chalk.cyan(T.update_checking));
+        try {
+            console.log(chalk.gray(T.update_pull));
+            // Masuk ke folder project lalu jalankan git pull
+            execSync('git pull origin main', { stdio: 'inherit', cwd: projectRoot });
+
+            console.log(chalk.gray(T.update_install));
+            // Jalankan npm install di folder project
+            execSync('npm install', { stdio: 'inherit', cwd: projectRoot });
+
+            console.log(chalk.green('\n' + T.update_success));
+        } catch (error) {
+            console.log(chalk.red('\n' + T.update_fail));
+            process.exitCode = 1;
+        }
+    });
+
 program.command('about').description('Show project credits').action(showAbout);
 
 // --- MAIN EXECUTION ---
 (async () => {
     const args = process.argv.slice(2);
-    const known = ['add', 'addgroup', 'addto', 'edit', 'list', 'groups', 'delfrom', 'delgroup', 'info', 'delete', 'clear', 'scan', 'lang', 'about', 'help', '-h', '--help', '-V', '--version'];
+    const known = ['add', 'addgroup', 'addto', 'edit', 'list', 'groups', 'delfrom', 'delgroup', 'info', 'delete', 'clear', 'scan', 'lang', 'update', 'about', 'help', '-h', '--help', '-V', '--version'];
     
     // Jika tidak ada argumen sama sekali (cuma ketik 'run')
     if (args.length === 0) {

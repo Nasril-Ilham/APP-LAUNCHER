@@ -46,5 +46,10 @@ module.exports = {
     fuzzy_found: (c) => `Found ${c} matching apps:`,
     not_found_generic: (n) => `Application, shortcut, or group "${n}" not found.`,
     type_help: "Type 'run help' for usage instructions.",
-    edit_prompt: "Type the name of the app to edit"
+    edit_prompt: "Type the name of the app to edit",
+    update_checking: "Checking for updates from GitHub...",
+    update_pull: "Pulling latest code...",
+    update_install: "Updating dependencies...",
+    update_success: "Zap CLI successfully updated to the latest version!",
+    update_fail: "Failed to update. Make sure no files are being edited and you are connected to the internet.",
 };

@@ -1,4 +1,4 @@
-const { exec } = require('child_process');
+const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const chalk = require('chalk');
@@ -110,28 +110,34 @@ function launchApp(appPath) {
     }
 
     try {
+        let launcher;
+        let args;
+
         if (process.platform === 'win32') {
-            const startsWithQuote = rawCommand.startsWith('"') || rawCommand.startsWith("'");
-            const command = startsWithQuote || isUrlLike(rawCommand)
-                ? rawCommand
-                : `"${rawCommand}"`;
-            const child = exec(`start "" ${command}`, {
-                detached: true,
-                windowsHide: true
-            }, (error) => {
-                if (error) console.log(chalk.red(`Gagal membuka aplikasi: ${error.message}`));
-            });
-            child.unref();
-            return;
+            const parsedCommand = parseLaunchCommand(rawCommand);
+            if (/\.exe$/i.test(parsedCommand.command) && !isUrlLike(parsedCommand.command)) {
+                launcher = parsedCommand.command;
+                args = parsedCommand.args;
+            } else {
+                launcher = 'explorer.exe';
+                args = [rawCommand];
+            }
+        } else {
+            launcher = process.platform === 'darwin' ? 'open' : 'xdg-open';
+            args = [rawCommand];
         }
 
-        // Untuk Mac dan Linux
-        const launcher = process.platform === 'darwin' ? 'open' : 'xdg-open';
-        const escapedCommand = rawCommand.replace(/"/g, '\\"');
-        const child = exec(`${launcher} "${escapedCommand}"`, {
-            detached: true
-        }, (error) => {
-            if (error) console.log(chalk.red(`Error: ${error.message}`));
+        const child = spawn(launcher, args, {
+            detached: true,
+            shell: false,
+            stdio: 'ignore',
+            windowsHide: process.platform === 'win32'
+        });
+        child.on('error', (error) => {
+            if (error) {
+                const message = process.platform === 'win32' ? 'Gagal membuka aplikasi' : 'Error';
+                console.log(chalk.red(`${message}: ${error.message}`));
+            }
         });
         child.unref();
     } catch (error) {

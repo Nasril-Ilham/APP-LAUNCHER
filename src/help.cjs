@@ -47,7 +47,8 @@ function showHelp() {
         console.log(`  ${chalk.magenta.bold('[Settings]')}`)
         console.log(`  ${chalk.bold.white('run lang id')}                   ${chalk.gray('Change language to Indonesian')}`)
         console.log(`  ${chalk.bold.white('run lang en')}                   ${chalk.gray('Change language to English')}\n`)
-        console.log(`  ${chalk.bold.white('run about')}                   ${chalk.gray('Show project credits')}\n`)
+        console.log(`  ${chalk.bold.white('run about')}                     ${chalk.gray('Show project credits')}\n`)
+        console.log(`  ${chalk.bold.white('run update')}                    ${chalk.gray('Update Zap CLI to the latest version')}\n`)
         showAbout();
     } else {
         console.log(` ${chalk.bold.green('Cara pakai:')}\n`);
@@ -71,7 +72,8 @@ function showHelp() {
         console.log(`  ${chalk.magenta.bold('[Pengaturan]')}`)
         console.log(`  ${chalk.bold.white('run lang id')}                   ${chalk.gray('Ganti bahasa ke Indonesia')}`)
         console.log(`  ${chalk.bold.white('run lang en')}                   ${chalk.gray('Ganti bahasa ke Inggris')}`)
-        console.log(`  ${chalk.bold.white('run about')}                  ${chalk.gray('Lihat credit proyek')}\n`)
+        console.log(`  ${chalk.bold.white('run about')}                     ${chalk.gray('Lihat credit proyek')}\n`)
+        console.log(`  ${chalk.bold.white('run update')}                ${chalk.gray('Perbarui Zap CLI ke versi terbaru')}\n`)
         showAbout();
     }
 }
