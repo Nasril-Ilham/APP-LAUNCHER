@@ -19,6 +19,8 @@ Important updates in this version include:
 - alias commands: `run`, `open`, and `zap`
 - better grouped workspace launching
 - smarter fuzzy matching when launching by partial app name
+- CLI applications launched with extra arguments run in the foreground and show their output in the terminal
+- `run clear` removes scanned apps while preserving apps added with `run add`
 - local runtime data stored in `data/` and ignored from Git by default
 
 ## Features
@@ -28,6 +30,7 @@ Important updates in this version include:
 - add custom website URLs such as WhatsApp, YouTube, and GitHub
 - create and launch workspace groups
 - edit, delete, and clear saved app records
+- preserve manually added apps when clearing scanned app records
 - support for Windows, macOS, and Linux
 - Indonesian and English language support
 - local JSON storage with no external database
@@ -101,6 +104,25 @@ run WhatsApp
 run YouTube
 ```
 
+Add CLI tools and pass arguments to them:
+
+```bash
+run add npm npm
+run add git git
+run npm install
+run git status
+```
+
+When extra arguments are provided, Zap runs the saved command in the foreground and displays its output in the terminal. Launching an app without extra arguments continues to use the normal background GUI behavior.
+
+Clear scanned apps while keeping manually added apps:
+
+```bash
+run clear
+```
+
+After confirmation, `run clear` removes scanned apps and clears workspace groups. Apps added with `run add` are kept; run `run scan` again to repopulate scanned apps.
+
 Create a workspace group:
 
 ```bash
@@ -139,7 +161,7 @@ run lang en
 | `run info <name>` | Show details for one app. |
 | `run edit <name>` | Edit app name, path, or shortcut. |
 | `run delete` | Remove an app interactively. |
-| `run clear` | Clear the app database. |
+| `run clear` | Remove scanned apps while keeping apps added with `run add`; also clear workspace groups. |
 
 ### Workspace / Groups
 

@@ -102,7 +102,7 @@ function quoteCommandArg(arg) {
 // ==========================================
 // FUNGSI NATIVE UNTUK MEMBUKA APLIKASI
 // ==========================================
-function launchApp(appPath) {
+function launchApp(appPath, isCliTool = false) {
     const rawCommand = typeof appPath === 'string' ? appPath.trim() : '';
     if (!rawCommand) {
         console.log(chalk.yellow('No app path provided.'));
@@ -112,34 +112,58 @@ function launchApp(appPath) {
     try {
         let launcher;
         let args;
+        let options;
 
-        if (process.platform === 'win32') {
+        if (isCliTool) {
             const parsedCommand = parseLaunchCommand(rawCommand);
-            if (/\.exe$/i.test(parsedCommand.command) && !isUrlLike(parsedCommand.command)) {
+            if (process.platform === 'win32') {
+                launcher = 'cmd.exe';
+                const commandLine = [parsedCommand.command, ...parsedCommand.args]
+                    .map(quoteCommandArg)
+                    .join(' ');
+                args = ['/d', '/s', '/c', commandLine];
+            } else {
                 launcher = parsedCommand.command;
                 args = parsedCommand.args;
-            } else {
-                launcher = 'explorer.exe';
-                args = [rawCommand];
             }
+            options = {
+                shell: false,
+                stdio: 'inherit',
+                windowsHide: false
+            };
+        } else if (process.platform === 'win32') {
+            launcher = 'cmd.exe';
+            const target = /^".*"$/.test(rawCommand) ? rawCommand : quoteCommandArg(rawCommand);
+            args = ['/c', 'start', '""', target];
+            options = {
+                detached: true,
+                shell: false,
+                stdio: 'ignore',
+                windowsHide: true
+            };
         } else {
             launcher = process.platform === 'darwin' ? 'open' : 'xdg-open';
             args = [rawCommand];
+            options = {
+                detached: true,
+                shell: false,
+                stdio: 'ignore',
+                windowsHide: false
+            };
         }
 
-        const child = spawn(launcher, args, {
-            detached: true,
-            shell: false,
-            stdio: 'ignore',
-            windowsHide: process.platform === 'win32'
-        });
+        const child = spawn(launcher, args, options);
         child.on('error', (error) => {
             if (error) {
                 const message = process.platform === 'win32' ? 'Gagal membuka aplikasi' : 'Error';
                 console.log(chalk.red(`${message}: ${error.message}`));
             }
         });
-        child.unref();
+
+        if (!isCliTool) {
+            child.unref();
+        }
+        return child;
     } catch (error) {
         console.log(chalk.red(`Error: ${error.message}`));
     }
@@ -228,11 +252,15 @@ function findGroupKey(groups, inputKey) {
 // ==========================================
 // LOGIKA PANGGIL LANGSUNG (ONE-SHOT & FUZZY)
 // ==========================================
-async function handleAppLaunch(inputKey) {
+async function handleAppLaunch(inputArgs) {
     const T = getT();
     const db = loadDb();
     const groups = loadGroups();
-    
+
+    const args = (Array.isArray(inputArgs) ? inputArgs : splitCommandLine(inputArgs))
+        .map(arg => String(arg));
+    const fullInput = args.join(' ');
+    const inputKey = fullInput.toLowerCase();
     const groupKey = findGroupKey(groups, inputKey);
     if (groupKey) {
         if (groups[groupKey].length === 0) return console.log(chalk.yellow(T.group_empty(groupKey)));
@@ -245,10 +273,23 @@ async function handleAppLaunch(inputKey) {
         return;
     }
     
-    let app = findApp(db, inputKey);
+    let app;
+    let appArgCount = 0;
+    for (let index = args.length; index > 0; index--) {
+        app = findApp(db, args.slice(0, index).join(' ').toLowerCase());
+        if (app) {
+            appArgCount = index;
+            break;
+        }
+    }
+
     if (app) {
         console.log(chalk.green(T.opening(app.name)));
-        launchApp(app.path);
+        const extraArgs = args.slice(appArgCount);
+        const fullCommand = extraArgs.length
+            ? [quoteCommandArg(app.path), ...extraArgs.map(quoteCommandArg)].join(' ')
+            : app.path;
+        launchApp(fullCommand, extraArgs.length > 0);
     } else {
         const matches = Object.values(db).filter(a => a.name.toLowerCase().includes(inputKey));
         if (matches.length === 1) {

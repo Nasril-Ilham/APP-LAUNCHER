@@ -5,7 +5,7 @@ const prompts = require('prompts');
 const chalk = require('chalk');
 const path = require('path');
 const { execSync } = require('child_process');
-const { loadDb, saveDb, loadGroups, saveGroups, loadConfig, saveConfig } = require('../src/db.cjs');
+const { loadDb, saveDb, filterManualApps, loadGroups, saveGroups, loadConfig, saveConfig } = require('../src/db.cjs');
 const { loadTranslations, getT } = require('../src/lang/index.cjs');
 const { launchApp, scanDirectory, sortApps, findApp, findAppKey, findGroupKey, handleAppLaunch, quoteCommandArg } = require('../src/core.cjs');
 const { showAbout, showBanner, showHelp } = require('../src/help.cjs');
@@ -29,7 +29,7 @@ program.command('add <name> [args...]')
   .action((name) => {
     const db = loadDb();
         const rawPath = process.argv.slice(4).map(quoteCommandArg).join(' ');
-    db[name.toLowerCase()] = { name, path: rawPath, shortcut: null };
+    db[name.toLowerCase()] = { name, path: rawPath, shortcut: null, manual: true };
     saveDb(db);
     console.log(chalk.green(T.add_success(name)));
   });
@@ -114,7 +114,7 @@ program.command('delete').action(async () => {
 program.command('clear').action(async () => {
     const res = await prompts({ type: 'confirm', name: 'v', message: T.clear_prompt, initial: false });
     if (res.v) { 
-        saveDb({}); 
+        saveDb(filterManualApps(loadDb()));
         saveGroups({}); // Tambahan: Hapus grup juga
         console.log(chalk.green(T.clear_success)); 
     } else console.log(chalk.yellow(T.cancelled));
@@ -157,7 +157,7 @@ program.command('scan [customPath...]').action((customPath) => {
 
     const db = loadDb();
     let count = 0;
-    scanned.forEach(a => { if (!db[a.name]) { db[a.name] = { name: a.name, path: a.path, shortcut: null }; count++; } });
+    scanned.forEach(a => { if (!db[a.name]) { db[a.name] = { name: a.name, path: a.path, shortcut: null, manual: false }; count++; } });
     saveDb(db);
     console.log(chalk.green(T.scan_success(count, Object.keys(db).length)));
 });
@@ -268,7 +268,7 @@ program.command('about').description('Show project credits').action(showAbout);
     
     // Jika bukan perintah yang dikenal, coba cari aplikasi/grup
     if (!known.includes(args[0])) {
-        await handleAppLaunch(args.join(' ').toLowerCase());
+        await handleAppLaunch(args);
     } else {
         await program.parseAsync(process.argv);
     }

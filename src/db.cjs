@@ -34,6 +34,12 @@ function saveDb(data) {
     fs.writeFileSync(dbPath, JSON.stringify(data, null, 2), 'utf-8');
 }
 
+function filterManualApps(db) {
+    return Object.fromEntries(
+        Object.entries(db).filter(([, app]) => app.manual === true)
+    );
+}
+
 function loadGroups() {
     ensureFileExists(groupsPath);
     const data = fs.readFileSync(groupsPath, 'utf-8');
@@ -58,4 +64,4 @@ function saveConfig(data) {
     fs.writeFileSync(configPath, JSON.stringify(data, null, 2), 'utf-8');
 }
 
-module.exports = { loadDb, saveDb, loadGroups, saveGroups, loadConfig, saveConfig };
+module.exports = { loadDb, saveDb, filterManualApps, loadGroups, saveGroups, loadConfig, saveConfig };
