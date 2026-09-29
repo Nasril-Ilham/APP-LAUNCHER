@@ -132,9 +132,22 @@ function launchApp(appPath, isCliTool = false) {
                 windowsHide: false
             };
         } else if (process.platform === 'win32') {
-            launcher = 'cmd.exe';
-            const target = /^".*"$/.test(rawCommand) ? rawCommand : quoteCommandArg(rawCommand);
-            args = ['/c', 'start', '""', target];
+            const parsedCommand = parseLaunchCommand(rawCommand);
+            const shortcutPath = rawCommand.replace(/^['"]|['"]$/g, '');
+            if (/\.exe$/i.test(shortcutPath) && !isUrlLike(shortcutPath)) {
+                launcher = shortcutPath;
+                args = [];
+            } else if (/\.exe$/i.test(parsedCommand.command) && !isUrlLike(parsedCommand.command)) {
+                launcher = parsedCommand.command;
+                args = parsedCommand.args;
+            } else if (/\.lnk$/i.test(shortcutPath)) {
+                launcher = 'explorer.exe';
+                args = [shortcutPath];
+            } else {
+                launcher = 'cmd.exe';
+                const target = /^".*"$/.test(rawCommand) ? rawCommand : quoteCommandArg(rawCommand);
+                args = ['/c', 'start', '""', target];
+            }
             options = {
                 detached: true,
                 shell: false,
